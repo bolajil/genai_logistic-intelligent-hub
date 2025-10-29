@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glih-ingestion"
+version = "0.1.0"
+description = "GLIH ingestion and ETL"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Lanre" }]
+license = { text = "Proprietary" }
+dependencies = [
+  "pandas>=2.2.0",
+  "requests>=2.32.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["glih_ingestion*"]

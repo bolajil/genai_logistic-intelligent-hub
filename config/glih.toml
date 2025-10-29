@@ -1,0 +1,92 @@
+[project]
+name = "GLIH"
+environment = "dev"
+client = "Lineage Logistics"
+use_case = "Cold Chain Intelligence & Automation"
+
+[storage]
+mode = "local"
+raw_data_dir = "data/raw"
+processed_data_dir = "data/processed"
+s3_bucket = ""
+s3_prefix = "glih/"
+azure_container = ""
+gcs_bucket = ""
+
+[vector_store]
+provider = "chromadb"
+collection = "glih-default"
+
+[embeddings]
+provider = "mistral"
+openai_model = "text-embedding-3-small"
+hf_model = "sentence-transformers/all-MiniLM-L6-v2"
+mistral_model = "mistral-embed"
+
+[llm]
+provider = "mistral"
+model = "mistral-medium-latest"
+api_key_env = "MISTRAL_API_KEY"
+
+[agents]
+enabled = [
+    "AnomalyResponder",
+    "RouteAdvisor",
+    "CustomerNotifier",
+    "OpsSummarizer",
+]
+
+# AnomalyResponder settings
+anomaly_temperature_threshold_c = 2.0
+anomaly_temperature_critical_c = 5.0
+anomaly_response_time_target_minutes = 5
+anomaly_notification_channels = ["email", "sms", "webhook"]
+
+# RouteAdvisor settings
+route_max_delay_minutes = 30
+route_spoilage_risk_threshold = 0.7
+route_optimization_enabled = true
+route_weather_integration = true
+
+# CustomerNotifier settings
+customer_notification_channel = "email"
+customer_notification_tone = "professional"
+customer_proactive_updates = true
+
+# OpsSummarizer settings
+ops_summary_window_hours = 24
+ops_summary_schedule = "shift_end"  # shift_end, hourly, daily
+ops_export_format = "pdf"
+
+[backend]
+host = "0.0.0.0"
+port = 8000
+log_level = "INFO"
+max_workers = 4
+
+[integrations]
+# External API integrations
+weather_api_enabled = false
+traffic_api_enabled = false
+wms_integration_enabled = false
+tms_integration_enabled = false
+iot_sensor_integration_enabled = false
+
+[frontend]
+backend_url = "http://localhost:8000"
+
+[lineage]
+# Lineage-specific settings
+facilities = ["Chicago", "Dallas", "Atlanta", "Los Angeles", "Seattle"]
+product_types = ["Seafood", "Dairy", "Frozen Foods", "Produce", "Meat"]
+compliance_standards = ["HACCP", "FDA", "FSMA", "GMP"]
+sop_collection = "lineage-sops"
+route_history_collection = "lineage-routes"
+
+# Temperature ranges by product type (min, max in Celsius)
+[lineage.temperature_ranges]
+Seafood = [-2, 2]
+Dairy = [0, 4]
+FrozenFoods = [-25, -18]
+Produce = [0, 10]
+Meat = [-2, 4]

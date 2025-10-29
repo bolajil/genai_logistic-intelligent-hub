@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glih-frontend"
+version = "0.1.0"
+description = "GLIH Streamlit frontend"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Lanre" }]
+license = { text = "Proprietary" }
+dependencies = [
+  "streamlit>=1.38.0",
+  "requests>=2.32.0",
+  "python-dotenv>=1.0.1",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["glih_frontend*"]
