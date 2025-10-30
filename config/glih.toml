@@ -17,6 +17,43 @@ gcs_bucket = ""
 provider = "chromadb"
 collection = "glih-default"
 
+[vector_store.chromadb]
+persist_directory = "data/chromadb"
+distance_metric = "cosine"
+
+[vector_store.faiss]
+index_type = "IndexFlatL2"
+persist_directory = "data/faiss"
+nlist = 100
+m = 16
+
+[vector_store.pinecone]
+api_key_env = "PINECONE_API_KEY"
+environment = "us-east-1-aws"
+index_name = "glih-index"
+dimension = 1024
+metric = "cosine"
+pod_type = "p1.x1"
+
+[vector_store.weaviate]
+url = "http://localhost:8080"
+api_key_env = "WEAVIATE_API_KEY"
+class_name = "GlihDocument"
+distance_metric = "cosine"
+
+[vector_store.qdrant]
+url = "http://localhost:6333"
+api_key_env = "QDRANT_API_KEY"
+collection_name = "glih_collection"
+distance_metric = "Cosine"
+
+[vector_store.milvus]
+host = "localhost"
+port = 19530
+collection_name = "glih_collection"
+index_type = "IVF_FLAT"
+metric_type = "L2"
+
 [embeddings]
 provider = "mistral"
 openai_model = "text-embedding-3-small"
@@ -35,27 +72,23 @@ enabled = [
     "CustomerNotifier",
     "OpsSummarizer",
 ]
-
-# AnomalyResponder settings
 anomaly_temperature_threshold_c = 2.0
 anomaly_temperature_critical_c = 5.0
 anomaly_response_time_target_minutes = 5
-anomaly_notification_channels = ["email", "sms", "webhook"]
-
-# RouteAdvisor settings
+anomaly_notification_channels = [
+    "email",
+    "sms",
+    "webhook",
+]
 route_max_delay_minutes = 30
 route_spoilage_risk_threshold = 0.7
 route_optimization_enabled = true
 route_weather_integration = true
-
-# CustomerNotifier settings
 customer_notification_channel = "email"
 customer_notification_tone = "professional"
 customer_proactive_updates = true
-
-# OpsSummarizer settings
 ops_summary_window_hours = 24
-ops_summary_schedule = "shift_end"  # shift_end, hourly, daily
+ops_summary_schedule = "shift_end"
 ops_export_format = "pdf"
 
 [backend]
@@ -65,7 +98,6 @@ log_level = "INFO"
 max_workers = 4
 
 [integrations]
-# External API integrations
 weather_api_enabled = false
 traffic_api_enabled = false
 wms_integration_enabled = false
@@ -76,17 +108,47 @@ iot_sensor_integration_enabled = false
 backend_url = "http://localhost:8000"
 
 [lineage]
-# Lineage-specific settings
-facilities = ["Chicago", "Dallas", "Atlanta", "Los Angeles", "Seattle"]
-product_types = ["Seafood", "Dairy", "Frozen Foods", "Produce", "Meat"]
-compliance_standards = ["HACCP", "FDA", "FSMA", "GMP"]
+facilities = [
+    "Chicago",
+    "Dallas",
+    "Atlanta",
+    "Los Angeles",
+    "Seattle",
+]
+product_types = [
+    "Seafood",
+    "Dairy",
+    "Frozen Foods",
+    "Produce",
+    "Meat",
+]
+compliance_standards = [
+    "HACCP",
+    "FDA",
+    "FSMA",
+    "GMP",
+]
 sop_collection = "lineage-sops"
 route_history_collection = "lineage-routes"
 
-# Temperature ranges by product type (min, max in Celsius)
 [lineage.temperature_ranges]
-Seafood = [-2, 2]
-Dairy = [0, 4]
-FrozenFoods = [-25, -18]
-Produce = [0, 10]
-Meat = [-2, 4]
+Seafood = [
+    -2,
+    2,
+]
+Dairy = [
+    0,
+    4,
+]
+FrozenFoods = [
+    -25,
+    -18,
+]
+Produce = [
+    0,
+    10,
+]
+Meat = [
+    -2,
+    4,
+]

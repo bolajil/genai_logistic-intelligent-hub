@@ -148,6 +148,62 @@ with tab_config:
                 st.error(f"Config fetch failed: {e}")
 
     st.markdown("---")
+    st.subheader("Vector Store Settings")
+    
+    # Vector Store Selection
+    vector_stores = {
+        "chromadb": "ChromaDB (Local, Persistent)",
+        "faiss": "FAISS (Local, Fast)",
+        "pinecone": "Pinecone (Cloud, Managed)",
+        "weaviate": "Weaviate (Cloud/Self-hosted)",
+        "qdrant": "Qdrant (Cloud/Self-hosted)",
+        "milvus": "Milvus (Coming Soon)"
+    }
+    
+    try:
+        # Get current vector store config
+        config_resp = requests.get(f"{BACKEND_URL}/config", timeout=5)
+        if config_resp.status_code == 200:
+            config_data = config_resp.json()
+            current_vs = config_data.get("vector_store", {}).get("provider", "chromadb")
+        else:
+            current_vs = "chromadb"
+    except:
+        current_vs = "chromadb"
+    
+    vs_options = list(vector_stores.keys())
+    vs_index = vs_options.index(current_vs) if current_vs in vs_options else 0
+    
+    col_vs1, col_vs2 = st.columns([2, 1])
+    with col_vs1:
+        selected_vs = st.selectbox(
+            "Select Vector Database",
+            vs_options,
+            index=vs_index,
+            format_func=lambda x: vector_stores[x],
+            key="vector_store_select",
+            help="Choose where to store your document embeddings"
+        )
+    
+    # Show info about selected vector store
+    vs_info = {
+        "chromadb": "✅ **Local storage** - No setup required. Data stored in `data/chromadb/`",
+        "faiss": "✅ **Local storage** - Fast similarity search. Data stored in `data/faiss/`",
+        "pinecone": "☁️ **Cloud managed** - Requires API key. Set `PINECONE_API_KEY` in .env",
+        "weaviate": "🔧 **Requires setup** - Cloud or self-hosted. Configure URL and API key in `config/glih.toml`",
+        "qdrant": "🔧 **Requires setup** - Cloud or self-hosted. Configure URL and API key in `config/glih.toml`",
+        "milvus": "🚧 **Coming soon** - Enterprise-grade vector database"
+    }
+    
+    st.info(vs_info.get(selected_vs, ""))
+    
+    if selected_vs != current_vs:
+        st.warning(f"⚠️ To switch from **{current_vs}** to **{selected_vs}**, update `config/glih.toml` and restart backend:")
+        st.code(f'[vector_store]\nprovider = "{selected_vs}"', language="toml")
+    else:
+        st.success(f"✅ Currently using: **{vector_stores[current_vs]}**")
+    
+    st.markdown("---")
     st.subheader("LLM Settings")
     try:
         cur = requests.get(f"{BACKEND_URL}/llm/current", timeout=5).json()

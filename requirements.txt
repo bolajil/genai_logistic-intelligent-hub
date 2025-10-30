@@ -4,3 +4,11 @@ streamlit>=1.38.0
 pandas>=2.2.0
 requests>=2.32.0
 python-dotenv>=1.0.1
+
+# Vector Stores (install based on your choice)
+chromadb>=0.4.0  # Default - local persistent
+faiss-cpu>=1.7.4  # Local fast search (use faiss-gpu for GPU support)
+pinecone-client>=2.2.0  # Cloud managed (requires API key)
+weaviate-client>=3.24.0  # Cloud/self-hosted (requires setup)
+qdrant-client>=1.7.0  # Cloud/self-hosted (requires setup)
+# pymilvus>=2.3.0  # Milvus support (coming soon)
