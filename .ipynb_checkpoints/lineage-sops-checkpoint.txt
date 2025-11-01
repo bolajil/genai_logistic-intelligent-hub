@@ -1,0 +1,60 @@
+LINEAGE LOGISTICS - COLD CHAIN BREACH PROTOCOL
+
+SEAFOOD TEMPERATURE BREACH RESPONSE:
+- Expected range: -2°C to 2°C
+- If temperature exceeds 4°C for >30 minutes: Immediate inspection required
+- If temperature exceeds 7°C for >1 hour: Product disposal required
+- Quality team notification required for all breaches
+- Document all incidents for FDA compliance
+- Follow SOP-COLD-CHAIN-003 for detailed procedures
+
+DAIRY TEMPERATURE BREACH RESPONSE:
+- Expected range: 0°C to 4°C
+- If temperature exceeds 6°C for >20 minutes: Inspection required
+- Quality assessment needed before distribution
+- Follow HACCP guidelines for documentation
+- Notify quality manager within 15 minutes
+- Document batch numbers and exposure duration
+
+FROZEN FOODS TEMPERATURE BREACH RESPONSE:
+- Expected range: -25°C to -18°C
+- If temperature exceeds -15°C: Immediate action required
+- Check for ice crystal formation and packaging integrity
+- Document for compliance reporting
+- Assess product quality before distribution
+- Follow FDA FSMA guidelines
+
+MEAT TEMPERATURE BREACH RESPONSE:
+- Expected range: -2°C to 4°C
+- If temperature exceeds 7°C for >30 minutes: Quality inspection required
+- Check for color changes and odor
+- Document all incidents for USDA compliance
+- Quarantine affected products pending inspection
+
+PRODUCE TEMPERATURE BREACH RESPONSE:
+- Expected range: 0°C to 10°C (varies by product)
+- Monitor for wilting, discoloration, or spoilage signs
+- Adjust storage conditions immediately
+- Document temperature deviations
+- Assess shelf life impact
+
+GENERAL COLD CHAIN PROCEDURES:
+- All temperature breaches must be logged in the incident tracking system
+- Notify operations manager within 5 minutes of detection
+- Retrieve and follow product-specific SOPs
+- Generate compliance documentation automatically
+- Conduct root cause analysis for recurring issues
+- Implement corrective actions within 24 hours
+
+NOTIFICATION ESCALATION:
+- Level 1 (Medium): Operations supervisor
+- Level 2 (High): Operations manager + Quality team
+- Level 3 (Critical): Facility manager + Quality director + Customer notification
+
+COMPLIANCE REQUIREMENTS:
+- HACCP: Hazard Analysis and Critical Control Points
+- FDA: Food and Drug Administration guidelines
+- FSMA: Food Safety Modernization Act
+- GMP: Good Manufacturing Practices
+- All incidents require documentation within 1 hour
+- Monthly compliance reports to regulatory bodies

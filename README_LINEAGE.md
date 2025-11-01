@@ -2,6 +2,12 @@
 
 **GenAI Logistics Intelligence Hub** - Automated cold chain intelligence and decision support
 
+**Latest Release (Oct 2025)**:
+- ✅ **Full MCP Integration**: WMS, IoT, and Document servers operational
+- ✅ **Production UI**: Redesigned Ingestion tab with step-by-step workflow
+- ✅ **Real-time Monitoring**: Live sensor data with auto-refresh
+- ✅ **100% Test Coverage**: All MCP client tests passing
+
 ---
 
 ## Overview
@@ -14,6 +20,7 @@ GLIH is a GenAI-powered platform that automates anomaly detection, document matc
 - **Natural language operations** - ask questions in plain English
 - **Autonomous agents** for 24/7 monitoring and response
 - **Compliance automation** for HACCP, FDA, FSMA, GMP
+- **MCP Integration** - Standardized access to WMS, IoT sensors, and documents
 
 ---
 

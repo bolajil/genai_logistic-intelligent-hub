@@ -55,15 +55,15 @@ index_type = "IVF_FLAT"
 metric_type = "L2"
 
 [embeddings]
-provider = "mistral"
+provider = "openai"
 openai_model = "text-embedding-3-small"
 hf_model = "sentence-transformers/all-MiniLM-L6-v2"
 mistral_model = "mistral-embed"
 
 [llm]
-provider = "mistral"
-model = "mistral-medium-latest"
-api_key_env = "MISTRAL_API_KEY"
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
 
 [agents]
 enabled = [
@@ -152,3 +152,27 @@ Meat = [
     -2,
     4,
 ]
+
+[mcp]
+enabled = true
+timeout_seconds = 30
+retry_attempts = 3
+cache_ttl_seconds = 300
+
+[[mcp.servers]]
+name = "lineage-wms"
+url = "http://localhost:8080"
+description = "WMS/TMS data access for shipments and inventory"
+enabled = true
+
+[[mcp.servers]]
+name = "lineage-iot"
+url = "http://localhost:8081"
+description = "IoT sensor data streaming (temperature, GPS, door status)"
+enabled = true
+
+[[mcp.servers]]
+name = "lineage-docs"
+url = "http://localhost:8082"
+description = "Document storage access (invoices, BOLs, SOPs)"
+enabled = true
