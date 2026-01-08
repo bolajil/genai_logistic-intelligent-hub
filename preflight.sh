@@ -24,21 +24,23 @@ if [ -f .venv/bin/activate ]; then
   # Linux/macOS
   # shellcheck source=/dev/null
   source .venv/bin/activate
+  PYTHON_CMD="python"
 elif [ -f .venv/Scripts/activate ]; then
-  # Git Bash on Windows
+  # Git Bash on Windows - use explicit path since PATH may not update correctly
   # shellcheck source=/dev/null
   source .venv/Scripts/activate
+  PYTHON_CMD=".venv/Scripts/python.exe"
 else
   echo "[GLIH] Could not find venv activate script. Try PowerShell: ./preflight.ps1"; exit 1
 fi
 
-python -m pip install --upgrade pip setuptools wheel
+$PYTHON_CMD -m pip install --upgrade pip setuptools wheel
 
 # Install editable packages
 for pkg in glih-backend glih-frontend glih-agents glih-ingestion glih-eval; do
   if [ -d "$pkg" ]; then
     echo "[GLIH] Installing $pkg (editable)"
-    python -m pip install -e "$pkg"
+    $PYTHON_CMD -m pip install -e "$pkg"
   fi
 done
 

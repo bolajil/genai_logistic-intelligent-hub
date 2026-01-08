@@ -36,8 +36,7 @@ llms = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = {find = {where = ["src"]}}
-include = ["glih_backend*"]
+packages = {find = {where = ["src"], include = ["glih_backend*"]}}
 
 [project.scripts]
 glih-api = "glih_backend.__main__:main"

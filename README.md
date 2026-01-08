@@ -2,7 +2,8 @@
 
 A modular, enterprise-ready monorepo for logistics AI: ingestion, RAG, agentic workflows, backend APIs, and UI.
 
-**Latest Updates (Oct 2025)**:
+**Latest Updates (Dec 2025)**:
+- ✅ **Cross-Platform Support**: Git Bash on Windows now fully supported
 - ✅ **Redesigned Query Tab**: Step-by-step workflow, example queries, smart error handling
 - ✅ **MCP UI Integration**: Browse shipments, sensors, and documents through web interface
 - ✅ **Redesigned Ingestion Tab**: Step-by-step workflow with storage location visibility
@@ -22,35 +23,57 @@ A modular, enterprise-ready monorepo for logistics AI: ingestion, RAG, agentic w
 - `data/` Raw/processed storage (local dev)
 
 ## Quickstart (dev)
-1. Copy env template and edit:
-   - Windows PowerShell:
-     ```powershell
-     Copy-Item .env.example .env
-     ```
-   - macOS/Linux:
-     ```bash
-     cp .env.example .env
-     ```
-2. Run preflight (creates a venv and installs editable packages):
-   - Windows PowerShell:
-     ```powershell
-     ./preflight.ps1
-     ```
-   - macOS/Linux:
-     ```bash
-     bash ./preflight.sh
-     source .venv/Scripts/activate
-     ```
-3. Start backend (dev):
-   ```powershell
-   pip install -e glih-backend -e glih-frontend -e glih-agents -e glih-ingestion -e glih-eval
-   ./.venv/Scripts/python.exe -m uvicorn --reload --port 8000 --app-dir glih-backend/src glih_backend.api.main:app
-   ```
-4. Start frontend (dev):
-   ```powershell
-   streamlit run glih-frontend/src/glih_frontend/app.py
-   ```
-   Access at: http://localhost:8501
+
+### 1. Copy env template
+```bash
+# All platforms
+cp .env.example .env
+```
+
+### 2. Run preflight (creates venv and installs packages)
+
+**Windows PowerShell** (recommended for Windows):
+```powershell
+.\preflight.ps1
+```
+
+**Git Bash on Windows**:
+```bash
+bash ./preflight.sh
+```
+
+**macOS/Linux**:
+```bash
+bash ./preflight.sh
+```
+
+### 3. Activate virtual environment
+
+**Windows PowerShell**:
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+**Git Bash on Windows**:
+```bash
+source .venv/Scripts/activate
+```
+
+**macOS/Linux**:
+```bash
+source .venv/bin/activate
+```
+
+### 4. Start backend (dev)
+```bash
+uvicorn glih_backend.api.main:app --reload --port 8000 --app-dir glih-backend/src
+```
+
+### 5. Start frontend (dev)
+```bash
+streamlit run glih-frontend/src/glih_frontend/app.py
+```
+Access at: http://localhost:8501
 
 ## Decisions needed (edit `config/glih.toml`)
 - Vector store: `chromadb | faiss | pinecone | weaviate`
