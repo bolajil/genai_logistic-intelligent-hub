@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: glih
+  labels:
+    app.kubernetes.io/name: glih
+    app.kubernetes.io/instance: production

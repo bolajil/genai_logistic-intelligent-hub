@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: glih-data-pvc
+  namespace: glih
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: ${STORAGE_CLASS}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: glih-chroma-pvc
+  namespace: glih
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: ${STORAGE_CLASS}

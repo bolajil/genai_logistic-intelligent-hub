@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glih-config
+  namespace: glih
+data:
+  GLIH_LLM_PROVIDER: "openai"
+  GLIH_LLM_MODEL: "gpt-4o"
+  GLIH_EMBEDDINGS_PROVIDER: "openai"
+  GLIH_EMBEDDINGS_MODEL: "text-embedding-3-small"
+  POSTGRES_HOST: "glih-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "glih"
+  REDIS_URL: "redis://glih-redis:6379"
+  GPS_TRACE_MODE: "demo"
+  IOT_MODE: "demo"
+  TRAFFIC_PROVIDER: "demo"

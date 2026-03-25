@@ -1,0 +1,127 @@
+version: '3.9'
+
+services:
+  # ============================================================
+  # GLIH Backend - FastAPI :9001
+  # ============================================================
+  backend:
+    build:
+      context: ./glih-backend
+      dockerfile: Dockerfile
+    container_name: glih-backend
+    ports:
+      - "9001:9001"
+    environment:
+      - PYTHONPATH=/app/src
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - GLIH_LLM_PROVIDER=${GLIH_LLM_PROVIDER:-openai}
+      - GLIH_LLM_MODEL=${GLIH_LLM_MODEL:-gpt-4o}
+      - GLIH_EMBEDDINGS_PROVIDER=${GLIH_EMBEDDINGS_PROVIDER:-openai}
+      - GLIH_EMBEDDINGS_MODEL=${GLIH_EMBEDDINGS_MODEL:-text-embedding-3-small}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-glih}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-glih}
+      - REDIS_URL=redis://redis:6379
+      - GPS_TRACE_API_TOKEN=${GPS_TRACE_API_TOKEN:-}
+      - OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY:-}
+      - IOT_MQTT_BROKER=${IOT_MQTT_BROKER:-}
+      - IOT_API_ENDPOINT=${IOT_API_ENDPOINT:-}
+      - TRAFFIC_PROVIDER=${TRAFFIC_PROVIDER:-}
+      - TRAFFIC_API_KEY=${TRAFFIC_API_KEY:-}
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - chroma-data:/app/chroma
+    depends_on:
+      - postgres
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============================================================
+  # GLIH Frontend - Next.js :9000
+  # ============================================================
+  frontend:
+    build:
+      context: ./glih-frontend-next
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-http://backend:9001}
+    container_name: glih-frontend
+    ports:
+      - "9000:9000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-http://backend:9001}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ============================================================
+  # PostgreSQL :9006
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: glih-postgres
+    ports:
+      - "9006:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-glih}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-glih}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-glih}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis :9007
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: glih-redis
+    ports:
+      - "9007:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # MQTT Broker (Mosquitto) :9005
+  # ============================================================
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: glih-mqtt
+    ports:
+      - "9005:1883"
+      - "9015:9001"
+    volumes:
+      - ./deploy/mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  chroma-data:
+  mqtt-data:
+
+networks:
+  default:
+    name: glih-network

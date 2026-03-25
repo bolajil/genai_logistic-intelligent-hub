@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: glih-ingress
+  namespace: glih
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  tls:
+    - hosts:
+        - ${DOMAIN}
+      secretName: glih-tls
+  rules:
+    - host: ${DOMAIN}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: glih-backend
+                port:
+                  number: 9001
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: glih-backend
+                port:
+                  number: 9001
+          - path: /fleet
+            pathType: Prefix
+            backend:
+              service:
+                name: glih-backend
+                port:
+                  number: 9001
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: glih-backend
+                port:
+                  number: 9001
+          - path: /settings
+            pathType: Prefix
+            backend:
+              service:
+                name: glih-backend
+                port:
+                  number: 9001
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: glih-frontend
+                port:
+                  number: 9000
