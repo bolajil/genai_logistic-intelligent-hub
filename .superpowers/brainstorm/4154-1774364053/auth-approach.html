@@ -1,0 +1,45 @@
+<h2>Authentication Approach</h2>
+<p class="subtitle">This is a production platform handling cold chain logistics — auth affects every API call, agent execution, and admin action</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>JWT + Roles (RBAC)</h3>
+      <p>Username/password login with JWT tokens. Roles: <strong>Admin</strong>, <strong>Operations Manager</strong>, <strong>Analyst</strong>, <strong>Read-Only</strong>. API key support for machine-to-machine (IoT agents, MCP servers).</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Already proven in NEXUS + Legal AI</li><li>Self-contained, no external deps</li><li>Fast to implement</li><li>API keys for IoT integrations</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No SSO for enterprise clients</li><li>Password management burden</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>JWT + OAuth2 SSO (Enterprise)</h3>
+      <p>Login via <strong>Microsoft Entra ID</strong> or <strong>Google Workspace</strong> in addition to local accounts. Enterprise clients plug in their existing identity provider — no separate passwords. API keys for service accounts.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Enterprise-standard for Lineage-scale clients</li><li>No password fatigue</li><li>Centralized user management for client</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More setup (OAuth app registration)</li><li>Extra complexity for demo environments</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>JWT + OAuth2 + API Keys (Full Stack)</h3>
+      <p>All three: local JWT for demo/dev, OAuth2 SSO for enterprise production users, and API keys for IoT devices and service-to-service calls. Feature-flagged — SSO is opt-in per deployment.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Covers every use case</li><li>Demo works without OAuth setup</li><li>Enterprise-ready when client approves</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Most complex auth layer</li><li>Requires careful testing of all paths</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1.5rem;padding:1rem;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Recommendation</p>
+  <p style="margin:0.25rem 0 0">Option C — implement JWT + RBAC fully now (you can demo it immediately), design the OAuth2 layer as opt-in config so enterprise clients can plug in Microsoft/Google when they approve the deployment. API keys are essential for IoT device auth.</p>
+</div>

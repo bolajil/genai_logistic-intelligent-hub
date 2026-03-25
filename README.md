@@ -1,11 +1,37 @@
 # GLIH — GenAI Logistics Intelligence Hub
 
-> **Production-grade cold chain intelligence platform.** Autonomous AI agents monitor temperature-sensitive shipments, detect anomalies, optimise routes, notify customers, and generate operational reports — in real time.
+> **Production-grade cold chain intelligence platform.** Autonomous AI agents monitor temperature-sensitive shipments, detect anomalies, optimise routes, notify customers, and generate operational reports — in real time. Now with **IoT integration**, **fleet management**, and **MCP connector ecosystem**.
 
 [![CI](https://github.com/bolajil/genai_logistic-intelligent-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/bolajil/genai_logistic-intelligent-hub/actions/workflows/ci.yml)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![Next.js 14](https://img.shields.io/badge/next.js-14-black.svg)](https://nextjs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+---
+
+## What's New (v2.0)
+
+### 🚚 Fleet Management
+- **Register 300+ trucks** via manual entry, CSV bulk import, or GPS-Trace auto-sync
+- **Live tracking dashboard** with real-time location, speed, and reefer temperature
+- **Fleet statistics** — active, in-transit, idle, offline counts by facility
+
+### 🔌 MCP Connector Ecosystem
+- **GPS-Trace** — Real-time truck tracking via [gps-trace.com](https://gps-trace.com) MCP
+- **OpenWeatherMap** — Weather forecasts for spoilage risk and route planning
+- **Lineage IoT** — Custom MQTT/API integration for temperature sensors, door status, geofences
+- **Traffic APIs** — Google/HERE/Mapbox integration for ETA optimization
+
+### ⚙️ Settings UI Overhaul
+- **Connection Mode** — Toggle Demo/Real per connector
+- **API Keys & IoT** — Configure all external integrations from the UI
+- **LLM Provider** — Switch between OpenAI, Anthropic, Mistral, DeepSeek
+- **Advanced** — Timeout, cache TTL, retry settings
+
+### 🛡️ Graceful Degradation
+- All connectors run in **DEMO mode** by default with simulated data
+- Add API keys when ready — no code changes, no restarts
+- Never breaks if external APIs are unavailable
 
 ---
 
@@ -19,6 +45,8 @@ Cold chain logistics operations — managing thousands of temperature-sensitive 
 | Spoilage from suboptimal routing | **RouteAdvisor** — spoilage risk scoring, route alternatives, carrier recommendations | 40% reduction in food waste |
 | Customer calls overwhelming ops teams | **CustomerNotifier** — proactive multi-channel notifications (email, SMS, webhook) | 50% reduction in inbound inquiries |
 | Manual shift handoff reports taking hours | **OpsSummarizer** — automated KPI reports with LLM executive summaries | 80% reduction in reporting time |
+| **No visibility into fleet location** | **Fleet Management** — GPS tracking, CSV import, live status dashboard | Real-time fleet visibility |
+| **Disconnected IoT sensors** | **MCP Connectors** — GPS-Trace, OpenWeatherMap, MQTT sensors unified | Single pane of glass |
 
 All four agents connect to a RAG (Retrieval-Augmented Generation) pipeline backed by cold chain SOPs, route history, and operational documents. Every agent decision is traceable, auditable, and explainable.
 
@@ -29,29 +57,29 @@ All four agents connect to a RAG (Retrieval-Augmented Generation) pipeline backe
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Next.js 14 :9000  —  Dark Ops Command Centre                   │
-│  Dashboard · Agents · Shipments · Alerts · Analytics · Admin    │
+│  Dashboard · Agents · Fleet · Shipments · Alerts · Settings     │
 └───────────────────────┬─────────────────────────────────────────┘
                         │ REST + SSE (live updates)
 ┌───────────────────────▼─────────────────────────────────────────┐
 │  FastAPI :9001  —  Modular Backend                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │
-│  │ api/rag  │ │api/agents│ │api/stream│ │   api/auth       │  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │
+│  │ api/rag  │ │api/agents│ │api/fleet │ │   api/settings   │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  connectors/  —  Demo ←──per-connection toggle──→ Real  │   │
-│  │  WmsConnector · IotConnector · DocsConnector            │   │
+│  │  MCP Connectors  —  Demo ←── plug-and-play ──→ Real     │   │
+│  │  GPS-Trace · OpenWeatherMap · Lineage IoT · Traffic     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └──────┬──────────────────────┬───────────────────┬──────────────┘
        │                      │                   │
 ┌──────▼──────┐  ┌────────────▼────┐  ┌───────────▼────────────┐
-│ MCP :9002   │  │  MCP :9003      │  │  MCP :9004             │
-│ WMS Server  │  │  IoT Server     │  │  Docs Server           │
-│ demo ↔ real │  │  demo ↔ MQTT   │  │  demo ↔ SharePoint     │
+│ GPS-Trace   │  │  OpenWeather    │  │  Lineage IoT MCP       │
+│ MCP Client  │  │  MCP Client     │  │  MQTT + REST + Demo    │
+│ Truck GPS   │  │  Weather API    │  │  Sensors + Alerts      │
 └─────────────┘  └─────────────────┘  └────────────────────────┘
        │
 ┌──────▼──────────────────────────────────────────────────────────┐
 │  Data Layer                                                      │
-│  ChromaDB (vectors) · PostgreSQL :9006 · Redis :9007            │
+│  ChromaDB (vectors) · trucks.json · PostgreSQL · Redis          │
 └──────┬──────────────────────────────────────────────────────────┘
        │
 ┌──────▼──────────────────────────────────────────────────────────┐
@@ -65,7 +93,7 @@ All four agents connect to a RAG (Retrieval-Augmented Generation) pipeline backe
 | Port | Service | Notes |
 |------|---------|-------|
 | 9000 | Next.js frontend | Dark Ops dashboard |
-| 9001 | FastAPI backend | RAG + Agents + Auth + SSE |
+| 9001 | FastAPI backend | RAG + Agents + Fleet + MCP |
 | 9002 | WMS MCP server | Shipment data |
 | 9003 | IoT MCP server | Sensor / GPS data |
 | 9004 | Docs MCP server | SOPs + BOLs |
@@ -99,7 +127,120 @@ open http://localhost:9000
 #   Password: ChangeMe123!
 ```
 
-All 10 services start, database migrations run, and the demo IoT simulator begins generating live sensor data immediately — no additional configuration required.
+All services start in **DEMO mode** — no API keys required. Add keys later via **Settings → API Keys & IoT**.
+
+---
+
+## Fleet Management
+
+### Register Your Fleet
+
+**Option 1: Manual Entry**
+1. Navigate to **Fleet** in the sidebar
+2. Click **+ Add Truck**
+3. Fill in Truck ID, Driver, Device ID, Facility
+4. Click **Register Truck**
+
+**Option 2: CSV Bulk Import (300+ trucks)**
+1. Prepare CSV with columns: `truck_id, driver_name, device_id, license_plate, facility, reefer`
+2. Click **📥 Bulk Import (CSV)**
+3. Upload file → Preview → Import
+
+```csv
+truck_id,driver_name,device_id,license_plate,facility,reefer
+TRK-001,John Smith,DEV-001,ABC-1234,Chicago DC,true
+TRK-002,Maria Garcia,DEV-002,XYZ-5678,Dallas DC,true
+TRK-003,James Wilson,DEV-003,QRS-9012,Atlanta DC,true
+```
+
+**Option 3: GPS-Trace Auto-Sync**
+1. Configure GPS-Trace API token in **Settings → API Keys & IoT**
+2. Click **🔄 Sync GPS-Trace** in Fleet page
+3. All trucks from your GPS-Trace account are imported automatically
+
+### Fleet API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/fleet/trucks` | List all trucks with live GPS data |
+| `POST` | `/fleet/trucks` | Register a new truck |
+| `PUT` | `/fleet/trucks/{id}` | Update truck info |
+| `DELETE` | `/fleet/trucks/{id}` | Deactivate truck |
+| `POST` | `/fleet/trucks/bulk` | Bulk import trucks |
+| `POST` | `/fleet/sync/gps-trace` | Sync from GPS-Trace |
+| `GET` | `/fleet/stats` | Fleet statistics |
+
+---
+
+## MCP Connector Configuration
+
+### Available Connectors
+
+| Connector | Purpose | Configuration Fields |
+|-----------|---------|---------------------|
+| **GPS-Trace** | Real-time truck GPS tracking | `api_token` |
+| **OpenWeatherMap** | Weather forecasts for route risk | `api_key` |
+| **Lineage IoT** | Temperature sensors, door status | `mqtt_broker`, `mqtt_port`, `api_endpoint`, `api_key` |
+| **Traffic** | Real-time traffic for ETA | `provider` (google/here/mapbox), `api_key` |
+
+### Configure via UI
+
+1. Navigate to **Settings → API Keys & IoT**
+2. Expand the connector you want to configure
+3. Enter your API keys/credentials
+4. Click **Save**
+5. Click **Test Connection** to verify
+
+### Configure via API
+
+```bash
+# Update GPS-Trace configuration
+curl -X PUT http://localhost:9001/settings/mcp/connector/gps_trace \
+  -H "Content-Type: application/json" \
+  -d '{"api_token": "your-gps-trace-token"}'
+
+# Test connection
+curl -X POST http://localhost:9001/settings/mcp/test/gps_trace
+```
+
+### MCP API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/settings/mcp` | List all MCP connectors and status |
+| `PUT` | `/settings/mcp/connector/{id}` | Update connector config |
+| `POST` | `/settings/mcp/test/{id}` | Test connector connection |
+| `GET` | `/mcp/trucks` | Get truck data from MCP |
+| `GET` | `/mcp/sensors` | Get IoT sensor readings |
+| `GET` | `/mcp/alerts` | Get temperature alerts |
+| `GET` | `/mcp/facility/{name}` | Get facility status |
+
+---
+
+## Demo Mode vs Real Mode
+
+Each connector operates independently:
+
+| Mode | Behavior |
+|------|----------|
+| **DEMO** | Simulated data generated locally — 5 trucks, 25 sensors, periodic alerts |
+| **REAL** | Live data from external APIs — requires API keys configured |
+
+### Demo Data Includes
+
+- **5 simulated trucks** on routes between Chicago, Dallas, Atlanta, LA, Seattle
+- **25 temperature sensors** across 5 facilities (5 per facility)
+- **Door sensors** and **geofences** per facility
+- **Temperature alerts** generated when thresholds exceeded
+- **Live location updates** every few seconds
+
+### Switching Modes
+
+Connectors automatically switch to REAL mode when:
+1. Valid API keys are configured in Settings
+2. Connection test passes
+
+No server restart required.
 
 ---
 
@@ -426,15 +567,32 @@ genai_logistic-intelligent-hub/
 ├── docker-compose.prod.yml      # 8 services (excludes Langfuse + Locust)
 ├── Makefile                     # make dev|test|test-load|migrate|deploy-*
 │
-├── glih-frontend/               # Next.js 14 :9000
+├── glih-frontend-next/          # Next.js 14 :9000
+│   └── app/(app)/
+│       ├── dashboard/           # Operations dashboard
+│       ├── fleet/               # Fleet management (NEW)
+│       ├── shipments/           # Shipment tracking
+│       ├── alerts/              # Alert management
+│       ├── settings/            # API keys, connectors, LLM (NEW)
+│       └── agents/              # AI agent control
+│
 ├── glih-backend/                # FastAPI :9001
 │   └── src/glih_backend/
-│       ├── api/                 # rag · agents · stream · auth
+│       ├── api/main.py          # All API endpoints
+│       ├── mcp_client.py        # GPS-Trace, OpenWeatherMap, IoT clients (NEW)
+│       ├── mcp_server.py        # Custom Lineage IoT MCP server (NEW)
 │       ├── connectors/          # base · factory · wms · iot · docs
 │       ├── demo/                # simulator · scenarios
 │       ├── auth/                # jwt · oauth · apikeys · rbac
 │       └── observability/       # tracing (Langfuse)
-├── glih-agents/                 # AI agent classes (unchanged)
+│
+├── config/
+│   └── glih.toml                # MCP connector configuration (NEW)
+│
+├── data/
+│   └── trucks.json              # Fleet data persistence (NEW)
+│
+├── glih-agents/                 # AI agent classes
 ├── mcp-servers/                 # WMS · IoT · Docs mock servers
 ├── tests/                       # unit/ · integration/ · load/
 ├── deploy/                      # aws/ · gcp/ · azure/ · k8s/ · scripts/
@@ -453,25 +611,55 @@ Full architectural decisions, database schema, connector abstraction, agent wiri
 
 ## Roadmap
 
+### Completed ✅
+
 - [x] RAG pipeline (ingest, embed, query)
 - [x] Four AI agent classes (Anomaly · Route · Notify · Ops)
 - [x] Multi-provider LLM (OpenAI · Anthropic · Mistral · DeepSeek)
 - [x] Multi-vector-store (ChromaDB · FAISS · Pinecone · Weaviate · Qdrant · Milvus)
 - [x] Mock MCP servers (WMS · IoT · Docs)
 - [x] Production design specification
-- [ ] Next.js 14 Dark Ops frontend
-- [ ] Connector abstraction with per-connection Demo/Real toggle
+- [x] Next.js 14 Dark Ops frontend
+- [x] Connector abstraction with per-connection Demo/Real toggle
+- [x] Demo IoT simulator with live data
+- [x] **Fleet Management** — manual entry, CSV bulk import, GPS-Trace sync
+- [x] **MCP Connector Ecosystem** — GPS-Trace, OpenWeatherMap, Lineage IoT, Traffic
+- [x] **Settings UI** — API keys, LLM provider, connector config
+- [x] **Graceful degradation** — demo mode fallback when APIs unavailable
+
+### In Progress 🔄
+
 - [ ] JWT + OAuth2 + API key authentication + RBAC
 - [ ] Agent API endpoints (the critical wiring)
 - [ ] Real-time SSE + MQTT IoT pipeline
-- [ ] Demo IoT simulator
 - [ ] Langfuse LLM observability
 - [ ] Locust load testing suite
+
+### Planned 📋
+
 - [ ] Alembic database migrations
 - [ ] Docker Compose (10 services)
 - [ ] GitHub Actions CI/CD
 - [ ] Terraform: AWS · GCP · Azure
+- [ ] Mobile app (React Native)
+- [ ] Multi-tenant support
 
 ---
 
-*Production-grade cold chain intelligence. Demo-to-real switching without code changes.*
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+*Production-grade cold chain intelligence. Demo-to-real switching without code changes. Fleet management for 300+ trucks.*

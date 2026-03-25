@@ -1,0 +1,135 @@
+<h2>Design Section 2 — Backend Internals, Agent Wiring & Connector Abstraction</h2>
+<p class="subtitle">How the FastAPI backend is structured internally — the critical missing piece from the original project</p>
+
+<div class="mockup">
+  <div class="mockup-header">glih-backend/src/glih_backend/ — Internal Structure</div>
+  <div class="mockup-body" style="background:#070d1a;padding:1.5rem;font-family:monospace;font-size:0.68rem;line-height:1.9;color:#64748b">
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── API ROUTERS (api/) ────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem">
+        <div style="color:#818cf8;font-size:0.65rem;font-weight:700">api/rag.py</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          POST /ingest &nbsp; POST /ingest/file<br>
+          POST /ingest/url &nbsp; POST /ingest/batch<br>
+          POST /query<br>
+          GET &nbsp;/collections &nbsp; DELETE /collections/{name}
+        </div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #312e81;border-radius:4px;padding:0.6rem">
+        <div style="color:#818cf8;font-size:0.65rem;font-weight:700">api/agents.py ← NEW (critical)</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          POST /agents/anomaly &nbsp;&nbsp; ← AnomalyResponder<br>
+          POST /agents/route &nbsp;&nbsp;&nbsp;&nbsp; ← RouteAdvisor<br>
+          POST /agents/notify &nbsp;&nbsp;&nbsp; ← CustomerNotifier<br>
+          POST /agents/ops-summary ← OpsSummarizer<br>
+          GET  /agents/history &nbsp;&nbsp;&nbsp; ← audit log
+        </div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem">
+        <div style="color:#818cf8;font-size:0.65rem;font-weight:700">api/stream.py</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          GET /stream/sensors &nbsp;(SSE — live IoT feed)<br>
+          GET /stream/alerts &nbsp;&nbsp;(SSE — agent alerts)<br>
+          GET /stream/shipments (SSE — status updates)
+        </div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem">
+        <div style="color:#818cf8;font-size:0.65rem;font-weight:700">api/auth.py</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          POST /auth/login &nbsp; POST /auth/refresh<br>
+          POST /auth/logout &nbsp; GET  /auth/me<br>
+          GET  /auth/oauth/microsoft &nbsp; /auth/oauth/google<br>
+          POST /auth/apikeys &nbsp; DELETE /auth/apikeys/{id}
+        </div>
+      </div>
+    </div>
+
+    <div style="color:#10b981;font-weight:700;margin-bottom:0.5rem">── CONNECTOR ABSTRACTION (connectors/) ──────────────</div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:4px;padding:0.75rem;margin-bottom:1rem">
+      <div style="color:#10b981;font-size:0.65rem;margin-bottom:0.5rem">
+        Each connector has a common interface. Toggle stored in PostgreSQL per connection_id.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">
+        <div style="background:#070d1a;border:1px solid #064e3b;border-radius:3px;padding:0.5rem">
+          <div style="color:#10b981;font-size:0.62rem;font-weight:700">WmsConnector</div>
+          <div style="color:#475569;font-size:0.58rem;line-height:1.6">
+            get_shipment(id)<br>
+            list_shipments(filters)<br>
+            get_shipment_events(id)<br>
+            ——<br>
+            demo → MCP :9002<br>
+            real → WMS REST API
+          </div>
+        </div>
+        <div style="background:#070d1a;border:1px solid #064e3b;border-radius:3px;padding:0.5rem">
+          <div style="color:#10b981;font-size:0.62rem;font-weight:700">IotConnector</div>
+          <div style="color:#475569;font-size:0.58rem;line-height:1.6">
+            get_sensor_reading(id)<br>
+            subscribe_to_stream(cb)<br>
+            get_gps_location(id)<br>
+            ——<br>
+            demo → simulator + SSE<br>
+            real → MQTT :9005
+          </div>
+        </div>
+        <div style="background:#070d1a;border:1px solid #064e3b;border-radius:3px;padding:0.5rem">
+          <div style="color:#10b981;font-size:0.62rem;font-weight:700">DocsConnector</div>
+          <div style="color:#475569;font-size:0.58rem;line-height:1.6">
+            get_document(id)<br>
+            search_documents(q)<br>
+            get_sop(product, type)<br>
+            ——<br>
+            demo → MCP :9004<br>
+            real → SharePoint / DMS
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="color:#f59e0b;font-weight:700;margin-bottom:0.5rem">── AGENT WIRING (the critical fix) ──────────────────</div>
+    <div style="background:#1a1000;border:1px solid #78350f;border-radius:4px;padding:0.75rem;margin-bottom:1rem">
+      <div style="color:#f59e0b;font-size:0.62rem;margin-bottom:0.5rem">
+        Original problem: agents accepted vector_search_fn + llm_generate_fn but nothing ever passed them in.<br>
+        Fix: api/agents.py creates real closures from providers and connectors, then calls the agent.
+      </div>
+      <div style="background:#070d1a;border-radius:3px;padding:0.6rem;color:#94a3b8;font-size:0.62rem;line-height:1.8">
+        <span style="color:#6366f1">@router.post</span>(<span style="color:#10b981">"/agents/anomaly"</span>)<br>
+        <span style="color:#6366f1">async def</span> <span style="color:#22d3ee">run_anomaly_agent</span>(event: AnomalyEvent, user=Depends(auth)):<br>
+        &nbsp;&nbsp;<span style="color:#475569"># 1. Build real callbacks from providers</span><br>
+        &nbsp;&nbsp;vector_search_fn = <span style="color:#f59e0b">lambda</span> q, collection, k: rag.search(q, collection, k)<br>
+        &nbsp;&nbsp;llm_generate_fn &nbsp;= <span style="color:#f59e0b">lambda</span> prompt: llm.generate(prompt, trace_id=new_trace())<br>
+        &nbsp;&nbsp;<span style="color:#475569"># 2. Build data from connector (demo or real)</span><br>
+        &nbsp;&nbsp;shipment = <span style="color:#f59e0b">await</span> wms_connector.get_shipment(event.shipment_id)<br>
+        &nbsp;&nbsp;<span style="color:#475569"># 3. Run agent with real context</span><br>
+        &nbsp;&nbsp;result = agent.respond_to_anomaly(event, shipment, vector_search_fn, llm_generate_fn)<br>
+        &nbsp;&nbsp;<span style="color:#475569"># 4. Publish alert to SSE stream</span><br>
+        &nbsp;&nbsp;<span style="color:#f59e0b">await</span> stream.publish(<span style="color:#10b981">"alerts"</span>, result)<br>
+        &nbsp;&nbsp;<span style="color:#475569"># 5. Log to audit trail</span><br>
+        &nbsp;&nbsp;<span style="color:#f59e0b">await</span> audit.log(user, <span style="color:#10b981">"anomaly_agent"</span>, event, result)<br>
+        &nbsp;&nbsp;<span style="color:#6366f1">return</span> result
+      </div>
+    </div>
+
+    <div style="color:#a78bfa;font-weight:700;margin-bottom:0.5rem">── DATA SIMULATOR (demo mode IoT) ────────────────────</div>
+    <div style="background:#0f0a1f;border:1px solid #4c1d95;border-radius:4px;padding:0.6rem;margin-bottom:0.5rem">
+      <div style="color:#475569;font-size:0.62rem;line-height:1.7">
+        <span style="color:#a78bfa">demo/simulator.py</span> — runs as background task when IoT connector = demo<br>
+        Generates realistic temperature drift, GPS movement, door events for all mock shipments<br>
+        Publishes to Redis pub/sub → picked up by SSE stream → frontend gauges update live<br>
+        Injects a temperature breach every ~5 minutes to trigger AnomalyResponder automatically<br>
+        Configurable: breach_frequency, drift_rate, shipment_count
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:1rem;padding:1rem;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid #f59e0b">
+  <p class="label">Key Point — What This Fixes</p>
+  <p style="margin:0.25rem 0 0;font-size:0.8rem">The original codebase had all 4 agents fully written but completely disconnected — their callbacks were always <code>None</code>. The <code>api/agents.py</code> router is the missing wire. It creates real closures from the actual RAG + LLM providers and injects them when calling each agent. No changes needed to the existing agent classes themselves.</p>
+</div>
+
+<div style="margin-top:1rem;text-align:center;color:#475569;font-size:0.8rem">
+  Does the backend structure and agent wiring look right? Reply to continue to Section 3 (frontend pages + demo scenarios).
+</div>

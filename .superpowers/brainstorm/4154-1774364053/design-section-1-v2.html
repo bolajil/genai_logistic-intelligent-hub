@@ -1,0 +1,158 @@
+<h2>Design Section 1 (v2) — Full System with Observability + Cloud</h2>
+<p class="subtitle">Locust load testing, Langfuse LLM observability, and Terraform for all three clouds added. Does this look right?</p>
+
+<div class="mockup">
+  <div class="mockup-header">GLIH Production Architecture — Revised</div>
+  <div class="mockup-body" style="background:#070d1a;padding:1.5rem;font-family:monospace;font-size:0.68rem;line-height:2;color:#64748b">
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── FRONTEND ──────────────────────────────────────────</div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem;color:#e2e8f0;margin-bottom:1rem">
+      <span style="color:#22d3ee">Next.js 14 :9000</span> &nbsp;|&nbsp; App Router &nbsp;|&nbsp; Dark Ops Theme &nbsp;|&nbsp; SSE live updates
+      <div style="color:#475569;font-size:0.62rem;margin-top:0.2rem">
+        /dashboard &nbsp; /agents &nbsp; /shipments &nbsp; /alerts &nbsp; /analytics &nbsp; /settings &nbsp; /admin
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── BACKEND ───────────────────────────────────────────</div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem;color:#e2e8f0;margin-bottom:1rem">
+      <span style="color:#6366f1">FastAPI :9001</span> &nbsp;|&nbsp; Python 3.11 &nbsp;|&nbsp; Modular Router &nbsp;|&nbsp; Async
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.4rem;margin-top:0.5rem">
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/rag<br><span style="color:#475569">ingest, query</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/agents<br><span style="color:#475569">anomaly·route·notify·ops</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/ws<br><span style="color:#475569">SSE live stream</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/auth<br><span style="color:#475569">JWT·OAuth2·keys</span></div>
+      </div>
+      <div style="margin-top:0.5rem;padding:0.4rem;background:#0a0f1e;border:1px solid #064e3b;border-radius:3px">
+        <span style="color:#10b981;font-size:0.62rem">connectors/</span>
+        <span style="color:#475569;font-size:0.62rem"> &nbsp; demo.py ←──per-connection toggle──→ real.py &nbsp;|&nbsp; WMS · IoT · Docs</span>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── DATA LAYER ────────────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">ChromaDB</div>
+        <div style="color:#475569;font-size:0.6rem">Vector store<br>SOPs · routes · ops history</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">PostgreSQL :9006</div>
+        <div style="color:#475569;font-size:0.6rem">Users · sessions<br>audit log · API keys</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">Redis :9007</div>
+        <div style="color:#475569;font-size:0.6rem">Session cache<br>rate limiting · SSE pub</div>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── MCP / IOT LAYER ───────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">WMS MCP :9002</div>
+        <div style="color:#475569;font-size:0.6rem">Shipment data<br>demo ↔ real WMS API</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">IoT MCP :9003</div>
+        <div style="color:#475569;font-size:0.6rem">Sensors / GPS<br>demo ↔ real MQTT</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">Docs MCP :9004</div>
+        <div style="color:#475569;font-size:0.6rem">SOPs · BOLs<br>demo ↔ real DMS</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">MQTT :9005</div>
+        <div style="color:#475569;font-size:0.6rem">Mosquitto broker<br>IoT pub/sub</div>
+      </div>
+    </div>
+
+    <div style="color:#10b981;font-weight:700;margin-bottom:0.5rem">── OBSERVABILITY & TESTING ───────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:4px;padding:0.6rem">
+        <div style="color:#10b981;font-size:0.65rem;font-weight:700">Langfuse :9008</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          LLM cost tracking per agent run<br>
+          Token usage per user / per session<br>
+          Trace viewer: RAG → Agent → Response<br>
+          Self-hosted (dev) · cloud.langfuse.com (prod)<br>
+          <span style="color:#10b981">→ localhost:9008/dashboard</span>
+        </div>
+      </div>
+      <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:4px;padding:0.6rem">
+        <div style="color:#10b981;font-size:0.65rem;font-weight:700">Locust :9009</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          Load testing all API endpoints<br>
+          Concurrent agent execution tests<br>
+          WebSocket connection stress tests<br>
+          Pre-built scenarios: normal · spike · soak<br>
+          <span style="color:#10b981">→ localhost:9009 (Locust Web UI)</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="color:#f59e0b;font-weight:700;margin-bottom:0.5rem">── CLOUD DEPLOYMENT (Terraform + Kubernetes) ─────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+      <div style="background:#1a1000;border:1px solid #78350f;border-radius:4px;padding:0.6rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">☁ AWS</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          EKS (Kubernetes)<br>
+          RDS PostgreSQL<br>
+          ElastiCache Redis<br>
+          ALB Ingress + ACM TLS<br>
+          ECR container registry<br>
+          <code style="color:#78350f">deploy/aws/</code>
+        </div>
+      </div>
+      <div style="background:#0a1020;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem">
+        <div style="color:#60a5fa;font-size:0.65rem;font-weight:700">☁ GCP</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          GKE Autopilot<br>
+          Cloud SQL PostgreSQL<br>
+          Memorystore Redis<br>
+          Cloud Load Balancer<br>
+          Artifact Registry<br>
+          <code style="color:#1e3a5f">deploy/gcp/</code>
+        </div>
+      </div>
+      <div style="background:#0a0a1a;border:1px solid #312e81;border-radius:4px;padding:0.6rem">
+        <div style="color:#818cf8;font-size:0.65rem;font-weight:700">☁ Azure</div>
+        <div style="color:#475569;font-size:0.6rem;line-height:1.6">
+          AKS (Kubernetes)<br>
+          Azure Database PG<br>
+          Azure Cache Redis<br>
+          App Gateway Ingress<br>
+          Azure Container Registry<br>
+          <code style="color:#312e81">deploy/azure/</code>
+        </div>
+      </div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem;font-size:0.62rem;color:#475569">
+      deploy/<br>
+      &nbsp;&nbsp;├── aws/ &nbsp;&nbsp;&nbsp;(terraform + k8s manifests)<br>
+      &nbsp;&nbsp;├── gcp/ &nbsp;&nbsp;&nbsp;(terraform + k8s manifests)<br>
+      &nbsp;&nbsp;├── azure/ &nbsp;(terraform + k8s manifests)<br>
+      &nbsp;&nbsp;├── k8s/ &nbsp;&nbsp;&nbsp;(shared: deployment, service, ingress, hpa, secrets, configmap)<br>
+      &nbsp;&nbsp;└── scripts/ (deploy.sh — one command per cloud)
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:1rem;padding:1rem;background:rgba(34,211,238,0.06);border-radius:8px;border-left:3px solid #22d3ee">
+  <p class="label">Complete Port Map</p>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;margin-top:0.5rem;font-size:0.68rem;font-family:monospace">
+    <div><span style="color:#22d3ee">9000</span> Next.js</div>
+    <div><span style="color:#6366f1">9001</span> FastAPI</div>
+    <div><span style="color:#22d3ee">9002</span> WMS MCP</div>
+    <div><span style="color:#22d3ee">9003</span> IoT MCP</div>
+    <div><span style="color:#22d3ee">9004</span> Docs MCP</div>
+    <div><span style="color:#22d3ee">9005</span> MQTT</div>
+    <div><span style="color:#f59e0b">9006</span> PostgreSQL</div>
+    <div><span style="color:#f59e0b">9007</span> Redis</div>
+    <div><span style="color:#10b981">9008</span> Langfuse</div>
+    <div><span style="color:#10b981">9009</span> Locust</div>
+  </div>
+</div>
+
+<div style="margin-top:1rem;text-align:center;color:#475569;font-size:0.8rem">
+  All services in Docker Compose. Terraform scripts ready for AWS / GCP / Azure.<br>
+  Does this structure look right? Reply to continue to Section 2 (backend + agent wiring).
+</div>

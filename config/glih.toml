@@ -159,6 +159,45 @@ timeout_seconds = 30
 retry_attempts = 3
 cache_ttl_seconds = 300
 
+# MCP Connector Configuration
+# All connectors work in demo mode when API keys are not configured
+[mcp.connectors]
+
+[mcp.connectors.gps_trace]
+# GPS-Trace MCP Server for truck/vehicle tracking
+# Get your API token from https://gps-trace.com or https://ruhavik.com
+enabled = true
+api_token = ""  # Leave empty for demo mode
+endpoint = "https://mcp.gps-trace.com/mcp"
+description = "Real-time truck tracking, mileage, engine hours, geofences"
+
+[mcp.connectors.openweathermap]
+# OpenWeatherMap for route weather forecasts
+# Get your API key from https://openweathermap.org/api
+enabled = true
+api_key = ""  # Leave empty for demo mode
+description = "Weather forecasts for route planning and spoilage risk"
+
+[mcp.connectors.iot]
+# Lineage IoT Sensors (temperature, door, humidity)
+# Connect via MQTT broker or HTTP API gateway
+enabled = true
+mode = "demo"  # demo | mqtt | api
+mqtt_broker = ""
+mqtt_port = 1883
+mqtt_username = ""
+mqtt_password = ""
+api_endpoint = ""  # e.g., http://iot-gateway.lineage.local:8080
+api_key = ""
+description = "Temperature sensors, door status, humidity monitoring"
+
+[mcp.connectors.traffic]
+# Traffic and routing API (Google Maps, HERE, or Mapbox)
+enabled = false
+provider = ""  # google | here | mapbox
+api_key = ""
+description = "Real-time traffic for ETA optimization"
+
 [[mcp.servers]]
 name = "lineage-wms"
 url = "http://localhost:8080"

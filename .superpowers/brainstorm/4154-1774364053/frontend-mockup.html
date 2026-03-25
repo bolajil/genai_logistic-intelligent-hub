@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLIH — Frontend Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #04080f; font-family: 'Inter', -apple-system, sans-serif; color: #e2e8f0; }
+
+  /* Layout */
+  .shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { background: #070d1a; border-right: 1px solid #0f2040; display: flex; flex-direction: column; }
+  .logo { padding: 1.25rem 1rem; border-bottom: 1px solid #0f2040; }
+  .logo-text { color: #22d3ee; font-size: 0.7rem; font-weight: 800; letter-spacing: 3px; }
+  .logo-sub { color: #334155; font-size: 0.58rem; margin-top: 2px; letter-spacing: 1px; }
+  .nav { flex: 1; padding: 0.75rem 0; }
+  .nav-section { padding: 0.5rem 1rem 0.25rem; color: #64748b; font-size: 0.65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .nav-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 1rem; color: #475569; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { color: #94a3b8; background: #0f1f3d22; }
+  .nav-item.active { color: #22d3ee; background: #0f2a40; border-left-color: #22d3ee; }
+  .nav-icon { width: 16px; text-align: center; font-size: 0.8rem; }
+  .nav-badge { margin-left: auto; background: #ef4444; color: white; font-size: 0.55rem; padding: 1px 5px; border-radius: 999px; }
+  .nav-badge.warn { background: #f59e0b; }
+  .sidebar-footer { padding: 0.75rem 1rem; border-top: 1px solid #0f2040; }
+  .mode-pill { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.6rem; background: #071a0f; border: 1px solid #064e3b; border-radius: 4px; margin-bottom: 0.5rem; }
+  .mode-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b981; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .mode-label { color: #10b981; font-size: 0.6rem; font-weight: 700; letter-spacing: 1px; }
+  .user-row { display: flex; align-items: center; gap: 0.5rem; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg,#6366f1,#22d3ee); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; }
+  .user-name { color: #64748b; font-size: 0.65rem; }
+
+  /* Main */
+  .main { display: flex; flex-direction: column; overflow: hidden; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.5rem; border-bottom: 1px solid #0f2040; background: #070d1a; }
+  .page-title { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; }
+  .page-sub { font-size: 0.62rem; color: #334155; margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+  .live-badge { display: flex; align-items: center; gap: 0.35rem; background: #071a0f; border: 1px solid #064e3b; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.6rem; color: #10b981; font-weight: 700; letter-spacing: 1px; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulse 1.5s infinite; }
+  .btn-icon { background: #0f1f3d; border: 1px solid #1e3a5f; color: #64748b; padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; }
+
+  /* KPI Cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+  .kpi { background: #070d1a; border: 1px solid #0f2040; border-radius: 8px; padding: 1rem; position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .kpi.teal::before { background: linear-gradient(90deg, #22d3ee, transparent); }
+  .kpi.amber::before { background: linear-gradient(90deg, #f59e0b, transparent); }
+  .kpi.green::before { background: linear-gradient(90deg, #10b981, transparent); }
+  .kpi.purple::before { background: linear-gradient(90deg, #a78bfa, transparent); }
+  .kpi-label { color: #64748b; font-size: 0.65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.5rem; }
+  .kpi-value { font-size: 1.75rem; font-weight: 800; line-height: 1; margin-bottom: 0.25rem; }
+  .kpi.teal .kpi-value { color: #22d3ee; }
+  .kpi.amber .kpi-value { color: #f59e0b; }
+  .kpi.green .kpi-value { color: #10b981; }
+  .kpi.purple .kpi-value { color: #a78bfa; }
+  .kpi-delta { font-size: 0.68rem; color: #64748b; }
+  .kpi-delta.up { color: #10b981; }
+  .kpi-delta.down { color: #ef4444; }
+  .kpi-icon { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); font-size: 1.75rem; opacity: 0.08; }
+
+  /* Mid grid */
+  .mid-grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 0.75rem; margin-bottom: 1.25rem; }
+
+  /* Panel */
+  .panel { background: #070d1a; border: 1px solid #0f2040; border-radius: 8px; overflow: hidden; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; border-bottom: 1px solid #0f2040; }
+  .panel-title { color: #64748b; font-size: 0.6rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; gap: 0.4rem; }
+  .panel-title-dot { width: 5px; height: 5px; border-radius: 50%; background: #22d3ee; animation: pulse 2s infinite; }
+  .panel-action { color: #334155; font-size: 0.6rem; cursor: pointer; }
+  .panel-action:hover { color: #64748b; }
+  .panel-body { padding: 0.75rem; }
+
+  /* Sensor rows */
+  .sensor-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px solid #0a1428; }
+  .sensor-row:last-child { border-bottom: none; }
+  .sensor-id { color: #94a3b8; font-size: 0.65rem; font-weight: 600; font-family: monospace; width: 120px; flex-shrink: 0; }
+  .temp-bar-wrap { flex: 1; height: 4px; background: #0f2040; border-radius: 2px; }
+  .temp-bar { height: 4px; border-radius: 2px; }
+  .temp-ok { background: linear-gradient(90deg, #10b981, #22d3ee); }
+  .temp-warn { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+  .temp-val { font-size: 0.65rem; font-family: monospace; width: 48px; text-align: right; flex-shrink: 0; }
+  .temp-val.ok { color: #10b981; }
+  .temp-val.warn { color: #f59e0b; }
+  .temp-val.breach { color: #ef4444; }
+  .status-chip { font-size: 0.55rem; padding: 1px 6px; border-radius: 3px; font-weight: 700; flex-shrink: 0; }
+  .status-ok { background: #071a0f; color: #10b981; border: 1px solid #064e3b; }
+  .status-warn { background: #1a0f00; color: #f59e0b; border: 1px solid #78350f44; }
+  .status-breach { background: #1a0505; color: #ef4444; border: 1px solid #7f1d1d44; }
+
+  /* Agent activity */
+  .agent-row { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px solid #0a1428; }
+  .agent-row:last-child { border-bottom: none; }
+  .agent-icon { width: 22px; height: 22px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; margin-top: 1px; }
+  .agent-icon.anomaly { background: #1a0505; border: 1px solid #7f1d1d44; }
+  .agent-icon.route { background: #0a1f0a; border: 1px solid #14532d44; }
+  .agent-icon.notify { background: #0a0a1f; border: 1px solid #1e1b4b44; }
+  .agent-icon.ops { background: #1a1000; border: 1px solid #78350f44; }
+  .agent-content { flex: 1; }
+  .agent-name { color: #94a3b8; font-size: 0.65rem; font-weight: 600; }
+  .agent-detail { color: #64748b; font-size: 0.65rem; margin-top: 1px; }
+  .agent-time { color: #1e3a5f; font-size: 0.55rem; flex-shrink: 0; }
+  .agent-result { font-size: 0.58rem; margin-top: 2px; }
+  .agent-result.success { color: #10b981; }
+  .agent-result.alert { color: #f59e0b; }
+
+  /* Alert feed */
+  .alert-item { padding: 0.5rem 0.6rem; border-radius: 5px; margin-bottom: 0.4rem; border-left: 3px solid; }
+  .alert-item.high { background: #0d0505; border-left-color: #ef4444; }
+  .alert-item.medium { background: #0d0a00; border-left-color: #f59e0b; }
+  .alert-item.info { background: #050d0d; border-left-color: #22d3ee; }
+  .alert-severity { font-size: 0.55rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; }
+  .alert-item.high .alert-severity { color: #ef4444; }
+  .alert-item.medium .alert-severity { color: #f59e0b; }
+  .alert-item.info .alert-severity { color: #22d3ee; }
+  .alert-msg { font-size: 0.63rem; color: #94a3b8; line-height: 1.4; }
+  .alert-meta { font-size: 0.65rem; color: #64748b; margin-top: 2px; }
+
+  /* Bottom grid */
+  .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; }
+
+  /* Shipment table */
+  .table { width: 100%; border-collapse: collapse; font-size: 0.65rem; }
+  .table th { color: #334155; font-size: 0.55rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 0.4rem 0.6rem; text-align: left; border-bottom: 1px solid #0f2040; }
+  .table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid #080f1c; color: #64748b; }
+  .table tr:hover td { background: #0a1428; color: #94a3b8; }
+  .shipment-id { color: #22d3ee; font-family: monospace; font-size: 0.62rem; }
+  .route-arrow { color: #334155; margin: 0 3px; }
+  .product-tag { background: #0f1f3d; border: 1px solid #1e3a5f; color: #64748b; font-size: 0.55rem; padding: 1px 5px; border-radius: 3px; }
+
+  /* Compliance gauge */
+  .gauge-wrap { text-align: center; padding: 1rem 0.5rem; }
+  .gauge-value { font-size: 2.5rem; font-weight: 800; color: #10b981; line-height: 1; }
+  .gauge-label { font-size: 0.6rem; color: #334155; margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .gauge-bar { height: 6px; background: #0f2040; border-radius: 3px; margin: 0.75rem 0.5rem 0.5rem; }
+  .gauge-fill { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #059669, #10b981, #34d399); width: 99.1%; }
+  .gauge-targets { display: flex; justify-content: space-between; padding: 0 0.5rem; }
+  .gauge-target { font-size: 0.58rem; color: #334155; }
+  .mini-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.5rem; padding: 0 0.25rem; }
+  .mini-stat { background: #0a1428; border-radius: 4px; padding: 0.4rem 0.5rem; text-align: center; }
+  .mini-stat-val { color: #94a3b8; font-size: 0.8rem; font-weight: 700; }
+  .mini-stat-lbl { color: #334155; font-size: 0.55rem; margin-top: 1px; }
+
+  /* Page tabs */
+  .tab-bar { display: flex; gap: 0; border-bottom: 1px solid #0f2040; margin-bottom: 1.25rem; }
+  .tab { padding: 0.5rem 1rem; font-size: 0.7rem; color: #475569; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: #94a3b8; background: #0f1f3d22; }
+  .tab.active { color: #22d3ee; border-bottom-color: #22d3ee; }
+
+  /* Document Ingest Section */
+  .ingest-section { display: none; }
+  .ingest-section.active { display: block; }
+  .upload-zone { border: 2px dashed #1e3a5f; border-radius: 8px; padding: 2rem; text-align: center; background: #070d1a; transition: all 0.2s; cursor: pointer; margin-bottom: 1rem; }
+  .upload-zone:hover { border-color: #22d3ee; background: #0a1428; }
+  .upload-zone.dragover { border-color: #22d3ee; background: #0f2a40; }
+  .upload-icon { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.5; }
+  .upload-title { color: #94a3b8; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .upload-subtitle { color: #475569; font-size: 0.7rem; }
+  .upload-formats { color: #334155; font-size: 0.6rem; margin-top: 0.5rem; }
+  .ingest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .ingest-panel { background: #070d1a; border: 1px solid #0f2040; border-radius: 8px; padding: 1rem; }
+  .ingest-panel-title { color: #64748b; font-size: 0.65rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+  .doc-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.4rem; background: #0a1428; }
+  .doc-item:hover { background: #0f1f3d; }
+  .doc-icon { width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; background: #0f2040; }
+  .doc-icon.pdf { background: #1a0505; color: #ef4444; }
+  .doc-icon.doc { background: #05051a; color: #6366f1; }
+  .doc-icon.csv { background: #051a0a; color: #10b981; }
+  .doc-info { flex: 1; }
+  .doc-name { color: #94a3b8; font-size: 0.7rem; font-weight: 500; }
+  .doc-meta { color: #475569; font-size: 0.6rem; margin-top: 1px; }
+  .doc-status { font-size: 0.55rem; padding: 2px 6px; border-radius: 3px; font-weight: 600; }
+  .doc-status.indexed { background: #071a0f; color: #10b981; border: 1px solid #064e3b; }
+  .doc-status.processing { background: #1a1000; color: #f59e0b; border: 1px solid #78350f; }
+  .doc-status.pending { background: #0f1f3d; color: #64748b; border: 1px solid #1e3a5f; }
+  .collection-select { width: 100%; background: #0a1428; border: 1px solid #1e3a5f; color: #94a3b8; padding: 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-bottom: 0.75rem; }
+  .collection-select:focus { outline: none; border-color: #22d3ee; }
+  .btn-ingest { background: linear-gradient(135deg, #0891b2, #22d3ee); color: #04080f; padding: 0.5rem 1rem; border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 700; cursor: pointer; width: 100%; margin-top: 0.5rem; }
+  .btn-ingest:hover { opacity: 0.9; }
+  .btn-ingest:disabled { opacity: 0.5; cursor: not-allowed; }
+  .stats-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .stat-box { flex: 1; background: #0a1428; border-radius: 4px; padding: 0.5rem; text-align: center; }
+  .stat-val { color: #22d3ee; font-size: 1rem; font-weight: 700; }
+  .stat-lbl { color: #475569; font-size: 0.55rem; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #0f2040; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-text">GLIH OPS</div>
+      <div class="logo-sub">COLD CHAIN INTELLIGENCE</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Operations</div>
+      <div class="nav-item active"><span class="nav-icon">⬡</span> Dashboard</div>
+      <div class="nav-item"><span class="nav-icon">⚡</span> Agents <span class="nav-badge warn">3</span></div>
+      <div class="nav-item"><span class="nav-icon">🚚</span> Shipments</div>
+      <div class="nav-item"><span class="nav-icon">🌡</span> Alerts <span class="nav-badge">1</span></div>
+      <div class="nav-section">Intelligence</div>
+      <div class="nav-item"><span class="nav-icon">📊</span> Analytics</div>
+      <div class="nav-item"><span class="nav-icon">📁</span> Documents</div>
+      <div class="nav-section">System</div>
+      <div class="nav-item"><span class="nav-icon">⚙</span> Settings</div>
+      <div class="nav-item"><span class="nav-icon">🔒</span> Admin</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="mode-pill"><div class="mode-dot"></div><div class="mode-label">DEMO MODE</div></div>
+      <div class="user-row">
+        <div class="avatar">LB</div>
+        <div>
+          <div style="color:#94a3b8;font-size:0.65rem;font-weight:600">Lanre Bolaji</div>
+          <div class="user-name">ops-manager</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="page-title">Operations Dashboard</div>
+        <div class="page-sub">Chicago Hub · Tue 24 Mar 2026 · 14:22 UTC</div>
+      </div>
+      <div class="topbar-right">
+        <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+        <div class="btn-icon">🔔</div>
+        <div class="btn-icon">⟳</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <div class="tab active">Dashboard</div>
+        <div class="tab">Shipments</div>
+        <div class="tab">Documents</div>
+        <div class="tab">Ingest</div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi teal">
+          <div class="kpi-label">Active Shipments</div>
+          <div class="kpi-value">847</div>
+          <div class="kpi-delta up">↑ 12 from yesterday</div>
+          <div class="kpi-icon">🚚</div>
+        </div>
+        <div class="kpi amber">
+          <div class="kpi-label">Active Alerts</div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-delta down">↑ 2 in last hour (critical)</div>
+          <div class="kpi-icon">⚠</div>
+        </div>
+        <div class="kpi green">
+          <div class="kpi-label">Temp Compliance</div>
+          <div class="kpi-value">99.1%</div>
+          <div class="kpi-delta up">↑ 0.4% vs last week</div>
+          <div class="kpi-icon">✓</div>
+        </div>
+        <div class="kpi purple">
+          <div class="kpi-label">On-Time Delivery</div>
+          <div class="kpi-value">94.2%</div>
+          <div class="kpi-delta down">↓ 1.3% vs last week</div>
+          <div class="kpi-icon">⏱</div>
+        </div>
+      </div>
+
+      <!-- Mid row -->
+      <div class="mid-grid">
+        <!-- Live sensor feed -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><div class="panel-title-dot"></div>Live Sensor Feed</div>
+            <div class="panel-action">View all →</div>
+          </div>
+          <div class="panel-body">
+            <div class="sensor-row">
+              <div class="sensor-id">TX-CHI-2025-001</div>
+              <div class="temp-bar-wrap"><div class="temp-bar temp-ok" style="width:30%"></div></div>
+              <div class="temp-val ok">0.5°C</div>
+              <div class="status-chip status-ok">OK</div>
+            </div>
+            <div class="sensor-row">
+              <div class="sensor-id">CHI-ATL-2025-089</div>
+              <div class="temp-bar-wrap"><div class="temp-bar temp-warn" style="width:85%"></div></div>
+              <div class="temp-val breach">5.2°C</div>
+              <div class="status-chip status-breach">BREACH</div>
+            </div>
+            <div class="sensor-row">
+              <div class="sensor-id">LA-SEA-2025-156</div>
+              <div class="temp-bar-wrap"><div class="temp-bar temp-ok" style="width:12%"></div></div>
+              <div class="temp-val ok">-20°C</div>
+              <div class="status-chip status-ok">OK</div>
+            </div>
+            <div class="sensor-row">
+              <div class="sensor-id">BOS-CHI-2025-332</div>
+              <div class="temp-bar-wrap"><div class="temp-bar temp-warn" style="width:55%"></div></div>
+              <div class="temp-val warn">3.1°C</div>
+              <div class="status-chip status-warn">WATCH</div>
+            </div>
+            <div class="sensor-row">
+              <div class="sensor-id">CHI-LA-2025-445</div>
+              <div class="temp-bar-wrap"><div class="temp-bar temp-ok" style="width:20%"></div></div>
+              <div class="temp-val ok">-18.4°C</div>
+              <div class="status-chip status-ok">OK</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent activity -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><div class="panel-title-dot"></div>Agent Activity</div>
+            <div class="panel-action">History →</div>
+          </div>
+          <div class="panel-body">
+            <div class="agent-row">
+              <div class="agent-icon anomaly">🌡</div>
+              <div class="agent-content">
+                <div class="agent-name">AnomalyResponder</div>
+                <div class="agent-detail">CHI-ATL-2025-089 · 5.2°C breach</div>
+                <div class="agent-result alert">⚡ Action plan generated</div>
+              </div>
+              <div class="agent-time">2m ago</div>
+            </div>
+            <div class="agent-row">
+              <div class="agent-icon notify">📨</div>
+              <div class="agent-content">
+                <div class="agent-name">CustomerNotifier</div>
+                <div class="agent-detail">Whole Foods · email sent</div>
+                <div class="agent-result success">✓ Delivered</div>
+              </div>
+              <div class="agent-time">2m ago</div>
+            </div>
+            <div class="agent-row">
+              <div class="agent-icon route">🗺</div>
+              <div class="agent-content">
+                <div class="agent-name">RouteAdvisor</div>
+                <div class="agent-detail">TX-CHI-2025-001 · 68% risk</div>
+                <div class="agent-result success">✓ Via Hub recommended</div>
+              </div>
+              <div class="agent-time">18m ago</div>
+            </div>
+            <div class="agent-row">
+              <div class="agent-icon ops">📋</div>
+              <div class="agent-content">
+                <div class="agent-name">OpsSummarizer</div>
+                <div class="agent-detail">08:00 shift handoff · 24h window</div>
+                <div class="agent-result success">✓ Report exported PDF</div>
+              </div>
+              <div class="agent-time">6h ago</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active alerts -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title"><div class="panel-title-dot" style="background:#ef4444;box-shadow:0 0 6px #ef4444"></div>Active Alerts</div>
+            <div class="panel-action">View all →</div>
+          </div>
+          <div class="panel-body" style="padding:0.5rem">
+            <div class="alert-item high">
+              <div class="alert-severity">HIGH · Temperature Breach</div>
+              <div class="alert-msg">CHI-ATL-2025-089 dairy shipment at 5.2°C — exceeds 4°C threshold by 1.2°C for 22 min</div>
+              <div class="alert-meta">AnomalyResponder · SOP-COLD-CHAIN-003 applied · 2m ago</div>
+            </div>
+            <div class="alert-item medium">
+              <div class="alert-severity">MEDIUM · Delay Risk</div>
+              <div class="alert-msg">BOS-CHI-2025-332 approaching threshold — 45 min delay, temp rising to 3.1°C</div>
+              <div class="alert-meta">RouteAdvisor · Monitoring · 14m ago</div>
+            </div>
+            <div class="alert-item info">
+              <div class="alert-severity">INFO · Delivery Confirmed</div>
+              <div class="alert-msg">LA-SEA-2025-156 frozen foods delivered at -20°C — full compliance maintained</div>
+              <div class="alert-meta">CustomerNotifier · Amazon Fresh notified · 1h ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom row -->
+      <div class="bottom-grid">
+        <!-- Shipments table -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Recent Shipments</div>
+            <div class="panel-action">View all 847 →</div>
+          </div>
+          <div class="panel-body" style="padding:0">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Shipment ID</th>
+                  <th>Route</th>
+                  <th>Product</th>
+                  <th>Temp</th>
+                  <th>Status</th>
+                  <th>ETA</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="shipment-id">CHI-ATL-2025-089</span></td>
+                  <td><span style="color:#64748b">Chicago</span><span class="route-arrow">→</span><span style="color:#64748b">Atlanta</span></td>
+                  <td><span class="product-tag">Dairy</span></td>
+                  <td><span style="color:#ef4444">5.2°C ⚠</span></td>
+                  <td><span class="status-chip status-breach">BREACH</span></td>
+                  <td style="color:#475569">18:00 UTC</td>
+                </tr>
+                <tr>
+                  <td><span class="shipment-id">TX-CHI-2025-001</span></td>
+                  <td><span style="color:#64748b">Dallas</span><span class="route-arrow">→</span><span style="color:#64748b">Chicago</span></td>
+                  <td><span class="product-tag">Seafood</span></td>
+                  <td><span style="color:#10b981">0.5°C ✓</span></td>
+                  <td><span class="status-chip status-ok">IN TRANSIT</span></td>
+                  <td style="color:#475569">14:00 UTC</td>
+                </tr>
+                <tr>
+                  <td><span class="shipment-id">BOS-CHI-2025-332</span></td>
+                  <td><span style="color:#64748b">Boston</span><span class="route-arrow">→</span><span style="color:#64748b">Chicago</span></td>
+                  <td><span class="product-tag">Produce</span></td>
+                  <td><span style="color:#f59e0b">3.1°C ⚠</span></td>
+                  <td><span class="status-chip status-warn">DELAYED</span></td>
+                  <td style="color:#475569">16:30 UTC</td>
+                </tr>
+                <tr>
+                  <td><span class="shipment-id">LA-SEA-2025-156</span></td>
+                  <td><span style="color:#64748b">Los Angeles</span><span class="route-arrow">→</span><span style="color:#64748b">Seattle</span></td>
+                  <td><span class="product-tag">Frozen</span></td>
+                  <td><span style="color:#10b981">-20°C ✓</span></td>
+                  <td><span class="status-chip status-ok">DELIVERED</span></td>
+                  <td style="color:#475569">Done</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Compliance gauge -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Compliance Score</div>
+            <div class="panel-action">7-day view</div>
+          </div>
+          <div class="panel-body">
+            <div class="gauge-wrap">
+              <div class="gauge-value">99.1%</div>
+              <div class="gauge-label">Temperature Compliance</div>
+            </div>
+            <div class="gauge-bar"><div class="gauge-fill"></div></div>
+            <div class="gauge-targets">
+              <div class="gauge-target">0%</div>
+              <div class="gauge-target" style="color:#10b981">Target 99%</div>
+              <div class="gauge-target">100%</div>
+            </div>
+            <div class="mini-stats">
+              <div class="mini-stat"><div class="mini-stat-val" style="color:#22d3ee">847</div><div class="mini-stat-lbl">Shipments</div></div>
+              <div class="mini-stat"><div class="mini-stat-val" style="color:#ef4444">3</div><div class="mini-stat-lbl">Breaches</div></div>
+              <div class="mini-stat"><div class="mini-stat-val" style="color:#10b981">12m</div><div class="mini-stat-lbl">Avg Response</div></div>
+              <div class="mini-stat"><div class="mini-stat-val" style="color:#a78bfa">$2.1M</div><div class="mini-stat-lbl">Waste Prevented</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document Ingest Section (hidden by default, shown when Ingest tab clicked) -->
+      <div class="ingest-section" id="ingest-section">
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="upload-zone">
+          <div class="upload-icon">📄</div>
+          <div class="upload-title">Drop files here or click to upload</div>
+          <div class="upload-subtitle">Upload SOPs, BOLs, invoices, and operational documents</div>
+          <div class="upload-formats">Supported: PDF, DOCX, TXT, CSV, JSON • Max 50MB per file</div>
+        </div>
+
+        <div class="ingest-grid">
+          <!-- Recent Uploads -->
+          <div class="ingest-panel">
+            <div class="ingest-panel-title">📥 Recent Uploads</div>
+            
+            <div class="doc-item">
+              <div class="doc-icon pdf">📕</div>
+              <div class="doc-info">
+                <div class="doc-name">SOP-COLD-CHAIN-003.pdf</div>
+                <div class="doc-meta">2.4 MB · Uploaded 2m ago</div>
+              </div>
+              <div class="doc-status processing">PROCESSING</div>
+            </div>
+            
+            <div class="doc-item">
+              <div class="doc-icon pdf">📕</div>
+              <div class="doc-info">
+                <div class="doc-name">Temperature-Compliance-Guide.pdf</div>
+                <div class="doc-meta">1.8 MB · Uploaded 1h ago</div>
+              </div>
+              <div class="doc-status indexed">INDEXED</div>
+            </div>
+            
+            <div class="doc-item">
+              <div class="doc-icon doc">📘</div>
+              <div class="doc-info">
+                <div class="doc-name">Carrier-Contracts-Q1-2026.docx</div>
+                <div class="doc-meta">856 KB · Uploaded 3h ago</div>
+              </div>
+              <div class="doc-status indexed">INDEXED</div>
+            </div>
+            
+            <div class="doc-item">
+              <div class="doc-icon csv">📗</div>
+              <div class="doc-info">
+                <div class="doc-name">route-history-march-2026.csv</div>
+                <div class="doc-meta">4.2 MB · Uploaded 1d ago</div>
+              </div>
+              <div class="doc-status indexed">INDEXED</div>
+            </div>
+
+            <div class="stats-row">
+              <div class="stat-box">
+                <div class="stat-val">847</div>
+                <div class="stat-lbl">Documents</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val">2.4GB</div>
+                <div class="stat-lbl">Total Size</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val">12.3K</div>
+                <div class="stat-lbl">Chunks</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ingest Settings -->
+          <div class="ingest-panel">
+            <div class="ingest-panel-title">⚙️ Ingest Settings</div>
+            
+            <label style="color:#64748b;font-size:0.65rem;display:block;margin-bottom:0.25rem">Target Collection</label>
+            <select class="collection-select">
+              <option>lineage-sops (default)</option>
+              <option>lineage-routes</option>
+              <option>lineage-contracts</option>
+              <option>lineage-compliance</option>
+              <option>+ Create new collection</option>
+            </select>
+
+            <label style="color:#64748b;font-size:0.65rem;display:block;margin-bottom:0.25rem">Chunk Size</label>
+            <select class="collection-select">
+              <option>512 tokens (recommended)</option>
+              <option>256 tokens</option>
+              <option>1024 tokens</option>
+            </select>
+
+            <label style="color:#64748b;font-size:0.65rem;display:block;margin-bottom:0.25rem">Embedding Model</label>
+            <select class="collection-select">
+              <option>text-embedding-3-small (OpenAI)</option>
+              <option>text-embedding-3-large (OpenAI)</option>
+              <option>all-MiniLM-L6-v2 (HuggingFace)</option>
+            </select>
+
+            <button class="btn-ingest">🚀 Start Ingestion</button>
+
+            <div class="stats-row">
+              <div class="stat-box">
+                <div class="stat-val" style="color:#10b981">99.2%</div>
+                <div class="stat-lbl">Success Rate</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val" style="color:#f59e0b">1</div>
+                <div class="stat-lbl">In Queue</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab switching functionality
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      
+      const tabName = this.textContent.trim().toLowerCase();
+      const dashboardContent = document.querySelector('.kpi-grid').parentElement;
+      const ingestSection = document.getElementById('ingest-section');
+      
+      if (tabName === 'ingest' || tabName === 'documents') {
+        // Hide dashboard content, show ingest
+        document.querySelector('.kpi-grid').style.display = 'none';
+        document.querySelector('.mid-grid').style.display = 'none';
+        document.querySelector('.bottom-grid').style.display = 'none';
+        ingestSection.classList.add('active');
+      } else {
+        // Show dashboard content, hide ingest
+        document.querySelector('.kpi-grid').style.display = 'grid';
+        document.querySelector('.mid-grid').style.display = 'grid';
+        document.querySelector('.bottom-grid').style.display = 'grid';
+        ingestSection.classList.remove('active');
+      }
+    });
+  });
+
+  // Upload zone drag & drop
+  const uploadZone = document.getElementById('upload-zone');
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+  });
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    alert('Files received! (Demo mode - no actual upload)');
+  });
+  uploadZone.addEventListener('click', () => {
+    alert('File picker would open here (Demo mode)');
+  });
+</script>
+</body>
+</html>

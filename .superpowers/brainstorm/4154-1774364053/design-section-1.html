@@ -1,0 +1,96 @@
+<h2>Design Section 1 — System Overview & Port Map</h2>
+<p class="subtitle">Full platform structure. Does this look right before we go deeper?</p>
+
+<div class="mockup">
+  <div class="mockup-header">GLIH Production Architecture</div>
+  <div class="mockup-body" style="background:#070d1a;padding:1.5rem;font-family:monospace;font-size:0.7rem;line-height:2;color:#64748b">
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── FRONTEND ──────────────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:0.25rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem;color:#e2e8f0">
+        <span style="color:#22d3ee">Next.js 14 :9000</span> &nbsp;|&nbsp; App Router &nbsp;|&nbsp; Dark Ops Theme &nbsp;|&nbsp; SSE live updates
+        <div style="color:#475569;font-size:0.65rem;margin-top:0.2rem">
+          /dashboard &nbsp; /agents &nbsp; /shipments &nbsp; /alerts &nbsp; /analytics &nbsp; /settings &nbsp; /admin
+        </div>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── BACKEND ───────────────────────────────────────────</div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.6rem;color:#e2e8f0;margin-bottom:1rem">
+      <span style="color:#6366f1">FastAPI :9001</span> &nbsp;|&nbsp; Python 3.11 &nbsp;|&nbsp; Modular Router &nbsp;|&nbsp; Async
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.4rem;margin-top:0.5rem">
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/rag<br><span style="color:#475569">ingest, query</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/agents<br><span style="color:#475569">anomaly, route, notify, ops</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/ws<br><span style="color:#475569">SSE live stream</span></div>
+        <div style="background:#0a0f1e;border:1px solid #312e81;border-radius:3px;padding:0.35rem;color:#818cf8;font-size:0.62rem">/api/auth<br><span style="color:#475569">JWT, OAuth2, keys</span></div>
+      </div>
+      <div style="margin-top:0.5rem;padding:0.4rem;background:#0a0f1e;border:1px solid #064e3b;border-radius:3px">
+        <span style="color:#10b981;font-size:0.62rem">connectors/</span>
+        <span style="color:#475569;font-size:0.62rem"> &nbsp; demo.py ←──toggle──→ real.py &nbsp;|&nbsp; per connection: WMS · IoT · Docs</span>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── DATA LAYER ────────────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">ChromaDB</div>
+        <div style="color:#475569;font-size:0.6rem">Vector store<br>SOPs · routes · ops history</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">PostgreSQL</div>
+        <div style="color:#475569;font-size:0.6rem">Users · sessions<br>audit log · API keys</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#f59e0b;font-size:0.65rem;font-weight:700">Redis</div>
+        <div style="color:#475569;font-size:0.6rem">Session cache<br>rate limiting · SSE pub</div>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── MCP / IOT LAYER ───────────────────────────────────</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem">
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">WMS MCP :9002</div>
+        <div style="color:#475569;font-size:0.6rem">Shipment data<br>demo ↔ real WMS API</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">IoT MCP :9003</div>
+        <div style="color:#475569;font-size:0.6rem">Sensors / GPS<br>demo ↔ real MQTT</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">Docs MCP :9004</div>
+        <div style="color:#475569;font-size:0.6rem">SOPs · BOLs<br>demo ↔ real DMS</div>
+      </div>
+      <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.65rem;font-weight:700">MQTT :9005</div>
+        <div style="color:#475569;font-size:0.6rem">Mosquitto broker<br>IoT pub/sub</div>
+      </div>
+    </div>
+
+    <div style="color:#22d3ee;font-weight:700;margin-bottom:0.5rem">── OBSERVABILITY ─────────────────────────────────────</div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+      <span style="color:#a78bfa;font-size:0.65rem">Langfuse</span>
+      <span style="color:#475569;font-size:0.62rem"> — LLM cost tracking · per-agent traces · token usage per user &nbsp;|&nbsp; </span>
+      <span style="color:#a78bfa;font-size:0.65rem">Structured JSON logs</span>
+      <span style="color:#475569;font-size:0.62rem"> — correlation IDs per request</span>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:1rem;padding:1rem;background:rgba(34,211,238,0.06);border-radius:8px;border-left:3px solid #22d3ee">
+  <p class="label">Port Summary</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem;font-size:0.7rem;font-family:monospace">
+    <div><span style="color:#22d3ee">9000</span> Next.js</div>
+    <div><span style="color:#6366f1">9001</span> FastAPI</div>
+    <div><span style="color:#22d3ee">9002</span> WMS MCP</div>
+    <div><span style="color:#22d3ee">9003</span> IoT MCP</div>
+    <div><span style="color:#22d3ee">9004</span> Docs MCP</div>
+    <div><span style="color:#f59e0b">9005</span> MQTT</div>
+    <div><span style="color:#f59e0b">9006</span> PostgreSQL</div>
+    <div><span style="color:#f59e0b">9007</span> Redis</div>
+  </div>
+</div>
+
+<div style="margin-top:1rem;text-align:center;color:#475569;font-size:0.8rem">
+  Does this overall structure look right? Reply to continue to Section 2 (Backend internals).
+</div>

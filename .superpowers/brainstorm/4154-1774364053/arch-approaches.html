@@ -1,0 +1,70 @@
+<h2>3 Architecture Approaches</h2>
+<p class="subtitle">How to structure the system — this affects everything: developer experience, deployment, scalability</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Monolith — Everything in One FastAPI Service</h3>
+      <p>RAG pipeline, agent execution, connector logic, and WebSocket streaming all live in a single Python service. One Docker container, one port (9001).</p>
+      <div style="background:#0f172a;border-radius:6px;padding:0.75rem;margin:0.75rem 0;font-size:0.72rem;font-family:monospace;color:#94a3b8;line-height:1.8">
+        ┌─────────────────────────────────────┐<br>
+        │  FastAPI :9001                       │<br>
+        │  ├── /ingest  (RAG pipeline)         │<br>
+        │  ├── /query   (RAG search)           │<br>
+        │  ├── /agents/* (all 4 agents)        │<br>
+        │  ├── /ws      (WebSocket stream)     │<br>
+        │  └── /connectors (demo/real switch)  │<br>
+        └─────────────────────────────────────┘
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Simplest deployment</li><li>No inter-service latency</li><li>One log stream</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Can't scale agents independently</li><li>One failure takes everything down</li><li>Large single codebase over time</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Microservices — Separate Service Per Agent</h3>
+      <p>Each agent runs as its own Docker container. An Orchestrator service coordinates them. RAG backend is separate. 8+ services total.</p>
+      <div style="background:#0f172a;border-radius:6px;padding:0.75rem;margin:0.75rem 0;font-size:0.72rem;font-family:monospace;color:#94a3b8;line-height:1.8">
+        ┌──────────┐  ┌──────────┐  ┌──────────┐<br>
+        │ RAG :9001│  │Orch:9005 │  │ MCP :9002│<br>
+        └──────────┘  └──────────┘  └──────────┘<br>
+        ┌──────────┐  ┌──────────┐  ┌──────────┐<br>
+        │Anomaly   │  │Route     │  │Notifier  │<br>
+        │:9010     │  │:9011     │  │:9012     │<br>
+        └──────────┘  └──────────┘  └──────────┘
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Scale each agent independently</li><li>Fault isolated per service</li><li>True microservices architecture</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>8+ services to manage</li><li>Network overhead between services</li><li>Over-engineered for current team size</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Modular Monolith + MCP Connector Layer ⭐ Recommended</h3>
+      <p>Single FastAPI backend with clean internal module boundaries. Agent router, connector abstraction, and streaming all in one service — but structured so any module can be extracted to a microservice later without rewriting. MCP servers stay separate (9002–9004).</p>
+      <div style="background:#0f172a;border-radius:6px;padding:0.75rem;margin:0.75rem 0;font-size:0.72rem;font-family:monospace;color:#94a3b8;line-height:1.8">
+        Next.js :9000 ──────────────────────────┐<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br>
+        ┌────────────── FastAPI :9001 ──────────┐<br>
+        │  api/rag.py   api/agents.py  api/ws.py│<br>
+        │  agents/      connectors/    auth/     │<br>
+        │  └─ demo.py ←──────→ real.py          │<br>
+        └────────────────────────────────────────┘<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
+        MCP:9002 &nbsp;&nbsp;&nbsp;MCP:9003 &nbsp;&nbsp;MQTT:9005
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Simple to deploy now</li><li>Clean module boundaries = extractable later</li><li>Per-connector demo/real toggle</li><li>Single service to debug and log</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>All agents share one process (acceptable for now)</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

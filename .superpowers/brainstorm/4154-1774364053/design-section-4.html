@@ -1,0 +1,94 @@
+<h2>Design Section 4 — File Tree, CLAUDE.md & README</h2>
+<p class="subtitle">Complete project structure, developer instructions, and documentation</p>
+
+<div class="mockup">
+  <div class="mockup-header">Project File Tree</div>
+  <div class="mockup-body" style="background:#070d1a;padding:1.25rem;font-family:monospace;font-size:0.65rem;line-height:1.8;color:#64748b">
+    <div style="color:#22d3ee">genai_logistic-intelligent-hub/</div>
+    <div>├── <span style="color:#f59e0b">CLAUDE.md</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Dev conventions for Claude Code</span></div>
+    <div>├── <span style="color:#f59e0b">README.md</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Production-grade docs (no "I/me")</span></div>
+    <div>├── <span style="color:#f59e0b">.env.example</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># All env vars documented</span></div>
+    <div>├── <span style="color:#f59e0b">docker-compose.yml</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># All 10 services</span></div>
+    <div>├── <span style="color:#f59e0b">docker-compose.prod.yml</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Production overrides</span></div>
+    <div>├── <span style="color:#f59e0b">Makefile</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># make dev, make test, make deploy-aws</span></div>
+    <div>│</div>
+    <div>├── <span style="color:#22d3ee">glih-frontend/</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Next.js 14 :9000</span></div>
+    <div>│ &nbsp;&nbsp;├── app/</div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── (auth)/login/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># JWT + OAuth2 login</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── dashboard/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Live ops dashboard</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── agents/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Agent runner + history</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── shipments/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Shipment table + detail</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── alerts/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Alert management</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── analytics/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Charts + exports</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── documents/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Ingest + RAG query</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;├── settings/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Demo/Real toggles</span></div>
+    <div>│ &nbsp;&nbsp;│ &nbsp;&nbsp;└── admin/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Users, RBAC, audit log</span></div>
+    <div>│ &nbsp;&nbsp;├── components/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Sidebar, Header, LiveFeed, TempGauge</span></div>
+    <div>│ &nbsp;&nbsp;├── lib/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># API client, SSE hook, auth utils</span></div>
+    <div>│</div>
+    <div>├── <span style="color:#6366f1">glih-backend/</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># FastAPI :9001</span></div>
+    <div>│ &nbsp;&nbsp;└── src/glih_backend/</div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── api/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># rag.py agents.py stream.py auth.py</span></div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── connectors/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># base.py wms.py iot.py docs.py</span></div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── demo/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># simulator.py scenarios.py</span></div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── auth/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># jwt.py oauth.py apikeys.py rbac.py</span></div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── providers.py &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># existing — unchanged</span></div>
+    <div>│ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── main.py &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># updated router registration</span></div>
+    <div>│</div>
+    <div>├── <span style="color:#10b981">glih-agents/</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Existing agents — no changes needed</span></div>
+    <div>├── <span style="color:#10b981">mcp-servers/</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># Updated ports 9002–9004</span></div>
+    <div>│</div>
+    <div>├── <span style="color:#a78bfa">tests/</span></div>
+    <div>│ &nbsp;&nbsp;├── unit/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># providers, agents, connectors</span></div>
+    <div>│ &nbsp;&nbsp;├── integration/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># full RAG pipeline, agent e2e</span></div>
+    <div>│ &nbsp;&nbsp;└── load/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># locustfile.py — 6 test scenarios</span></div>
+    <div>│</div>
+    <div>├── <span style="color:#f59e0b">deploy/</span></div>
+    <div>│ &nbsp;&nbsp;├── aws/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># terraform: EKS, RDS, ElastiCache, ALB</span></div>
+    <div>│ &nbsp;&nbsp;├── gcp/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># terraform: GKE Autopilot, Cloud SQL</span></div>
+    <div>│ &nbsp;&nbsp;├── azure/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># terraform: AKS, Azure DB, ACR</span></div>
+    <div>│ &nbsp;&nbsp;├── k8s/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># shared manifests: deploy, svc, ingress, hpa</span></div>
+    <div>│ &nbsp;&nbsp;└── scripts/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># deploy-aws.sh, deploy-gcp.sh, deploy-azure.sh</span></div>
+    <div>│</div>
+    <div>└── <span style="color:#f59e0b">.github/workflows/</span></div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;├── ci.yml &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># test + lint on PR</span></div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;└── deploy.yml &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#334155"># build + push images on main merge</span></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1rem">
+  <h3 style="color:#e2e8f0;margin-bottom:0.75rem">CLAUDE.md — Key Conventions</h3>
+  <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem;font-size:0.7rem;color:#94a3b8;line-height:1.8">
+    <div style="color:#22d3ee;margin-bottom:0.35rem;font-weight:700">What CLAUDE.md will cover:</div>
+    <div>✦ Port assignments (9000–9009) — never use others without updating this file</div>
+    <div>✦ Startup commands: <code style="color:#10b981">make dev</code> (all services), <code style="color:#10b981">make backend</code>, <code style="color:#10b981">make frontend</code></div>
+    <div>✦ Connector pattern — always implement base.py interface; never bypass via hardcoded data</div>
+    <div>✦ Agent pattern — agents never import connectors directly; always receive callbacks via api/agents.py</div>
+    <div>✦ Demo mode — simulator is always on in demo; never disable without updating .env</div>
+    <div>✦ Langfuse — every LLM call must carry a trace_id; never call llm.generate() without one</div>
+    <div>✦ Auth — all /api/* routes require JWT except /api/health and /api/auth/login</div>
+    <div>✦ Testing — run <code style="color:#10b981">make test</code> before any PR; Locust scenarios must pass at 50 users</div>
+    <div>✦ Cloud deploy — Terraform state in S3/GCS/Azure Blob; never apply manually</div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1rem">
+  <h3 style="color:#e2e8f0;margin-bottom:0.75rem">README.md — Structure</h3>
+  <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem;font-size:0.7rem;color:#94a3b8;line-height:1.8">
+    <div style="color:#22d3ee;margin-bottom:0.35rem;font-weight:700">Production-grade README — no "I/me" — written as product documentation:</div>
+    <div>1. Platform overview — what GLIH solves (cold chain intelligence)</div>
+    <div>2. Architecture diagram (ASCII + description)</div>
+    <div>3. Quick start — <code style="color:#10b981">cp .env.example .env</code> → <code style="color:#10b981">make dev</code> → open localhost:9000</div>
+    <div>4. Demo scenarios — how to run all 6</div>
+    <div>5. Connector switching — how to toggle demo → real per connection</div>
+    <div>6. Agent reference — what each agent does, inputs, outputs</div>
+    <div>7. API reference — all endpoints with examples</div>
+    <div>8. Observability — Langfuse (:9008) + Locust (:9009)</div>
+    <div>9. Cloud deployment — AWS / GCP / Azure one-command deploy</div>
+    <div>10. Environment variables — full table with descriptions</div>
+  </div>
+</div>
+
+<div style="margin-top:1rem;text-align:center;color:#475569;font-size:0.8rem">
+  Full design complete. Does this final section look right?<br>Reply "approved" to write the spec document and begin implementation planning.
+</div>

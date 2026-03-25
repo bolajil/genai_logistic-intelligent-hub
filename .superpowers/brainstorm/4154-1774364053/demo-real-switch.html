@@ -1,0 +1,45 @@
+<h2>How should Demo ↔ Production mode switching work?</h2>
+<p class="subtitle">This is architecturally foundational — affects how connectors, APIs, and the UI are structured</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Environment Variable Only</h3>
+      <p>Set <code>GLIH_MODE=demo</code> or <code>GLIH_MODE=production</code> in the <code>.env</code> file. No UI toggle — ops team controls it at deployment time. Simple, safe, audit-friendly.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No accidental mode switch in prod</li><li>Clean infrastructure boundary</li><li>Simplest to implement</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Requires server restart to switch</li><li>Can't demo both modes live</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Global UI Toggle (Admin Page)</h3>
+      <p>Admin dashboard has a <strong>Mode Switch</strong> — one toggle flips the entire platform from Demo to Production. Persisted in the database, no restart needed. Requires admin role to change.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Can switch live during demos</li><li>Visible to all team members</li><li>No server restart needed</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Risk of accidental flip</li><li>More complex UI + state management</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Per-Connection Toggle (Granular)</h3>
+      <p>Each integration — WMS, IoT, Docs — has its own Demo/Real toggle in the Settings page. Mix and match: IoT on real sensors, WMS still on demo. Most flexible for phased rollout.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Phased rollout (approve one at a time)</li><li>Perfect for client approval workflow</li><li>Can test real IoT while WMS stays safe</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Most complex to build</li><li>Risk of mixed state confusion</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1.5rem;padding:1rem;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Recommendation</p>
+  <p style="margin:0.25rem 0 0">Option C is ideal for a production platform targeting enterprise clients — it mirrors exactly how a real phased rollout works: "approve WMS real connection this sprint, IoT next sprint." But it requires more upfront architecture.</p>
+</div>

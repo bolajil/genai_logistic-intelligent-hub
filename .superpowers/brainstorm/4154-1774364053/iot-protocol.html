@@ -1,0 +1,60 @@
+<h2>Real-Time IoT Data Protocol</h2>
+<p class="subtitle">When production connections are approved, how do sensors push temperature/GPS/door data to the platform?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>REST Polling</h3>
+      <p>Backend polls the IoT API every N seconds to fetch latest sensor readings. Simple, firewall-friendly, works with any existing WMS/TMS REST API.</p>
+      <div style="background:#1e293b;border-radius:6px;padding:0.75rem;margin-top:0.75rem;font-size:0.8rem;font-family:monospace;color:#94a3b8">
+        Backend → GET /sensors/readings (every 30s)<br>
+        Backend → GET /shipments/TX-CHI-2025-001/temp<br>
+        Backend processes → alerts if breach
+      </div>
+      <div class="pros-cons" style="margin-top:0.75rem">
+        <div class="pros"><h4>Pros</h4><ul><li>Works with any REST API</li><li>Simple, debuggable</li><li>No special infra needed</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>30s+ latency on anomalies</li><li>Not truly real-time</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>WebSocket / SSE (Real-Time Push)</h3>
+      <p>IoT sensors push data to the backend via WebSocket or Server-Sent Events. Frontend dashboard updates live — temperature gauges move in real time. Demo mode simulates this with a data generator.</p>
+      <div style="background:#1e293b;border-radius:6px;padding:0.75rem;margin-top:0.75rem;font-size:0.8rem;font-family:monospace;color:#94a3b8">
+        IoT Sensor → WS push → Backend<br>
+        Backend → SSE → Frontend (live dashboard)<br>
+        Anomaly detected → immediate alert (sub-second)
+      </div>
+      <div class="pros-cons" style="margin-top:0.75rem">
+        <div class="pros"><h4>Pros</h4><ul><li>Truly real-time (&lt;1s latency)</li><li>Live dashboard updates</li><li>Demo generates live fake data</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>More complex connection management</li><li>Requires persistent connections</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>MQTT (Industry IoT Standard)</h3>
+      <p>The protocol used by most enterprise cold chain sensors (Carrier, Sensitech, Tive). Pub/sub model — sensors publish to topics, backend subscribes. Standard in Lineage-scale logistics.</p>
+      <div style="background:#1e293b;border-radius:6px;padding:0.75rem;margin-top:0.75rem;font-size:0.8rem;font-family:monospace;color:#94a3b8">
+        Sensor → MQTT broker → topic: lineage/truck/TX-CHI/temp<br>
+        Backend subscribes → AnomalyResponder triggered<br>
+        Demo: mock MQTT broker with simulated sensor stream
+      </div>
+      <div class="pros-cons" style="margin-top:0.75rem">
+        <div class="pros"><h4>Pros</h4><ul><li>Industry standard for cold chain</li><li>Low bandwidth, designed for IoT</li><li>What real Lineage systems would use</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Requires MQTT broker (Mosquitto/HiveMQ)</li><li>New protocol vs REST</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1.5rem;padding:1rem;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Recommendation</p>
+  <p style="margin:0.25rem 0 0"><strong>B + C hybrid:</strong> WebSocket/SSE for the frontend dashboard (live gauges, real-time alerts), MQTT connector for production IoT ingestion. Demo mode runs a built-in data simulator that feeds the same WebSocket pipeline. This way the demo looks exactly like production.</p>
+</div>

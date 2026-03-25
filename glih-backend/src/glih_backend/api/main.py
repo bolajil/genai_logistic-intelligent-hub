@@ -31,7 +31,7 @@ app = FastAPI(title="GLIH Backend", version="0.1.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://localhost:3000"],
+    allow_origins=["http://localhost:8501", "http://localhost:3000", "http://localhost:9000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,10 +45,117 @@ _llm = make_llm_provider(_cfg)
 
 logger.info(f"GLIH Backend initialized: LLM={_llm.provider}/{_llm.model}, Embeddings={_emb.provider}/{_emb.model}, VectorStore={_vs.provider}")
 
+# ---------------------------------------------------------------------------
+# BM25 index cache — keyed by collection name, invalidated on every ingest
+# ---------------------------------------------------------------------------
+_bm25_cache: Dict[str, Any] = {}
+
+
+def _invalidate_bm25(collection: str) -> None:
+    _bm25_cache.pop(collection, None)
+
+
+def _get_bm25_index(collection: str) -> Optional[Dict[str, Any]]:
+    """Return (or build and cache) a BM25Okapi index for the given collection."""
+    if collection in _bm25_cache:
+        return _bm25_cache[collection]
+    try:
+        from rank_bm25 import BM25Okapi  # type: ignore
+        coll = _vs.get_collection(collection)
+        if coll is None:
+            return None
+        raw = coll.get(include=["documents", "metadatas"])
+        docs: List[str] = raw.get("documents") or []
+        ids: List[str] = raw.get("ids") or []
+        metas: List[Dict] = raw.get("metadatas") or [{}] * len(docs)
+        if not docs:
+            return None
+        tokenized = [d.lower().split() for d in docs]
+        entry: Dict[str, Any] = {
+            "bm25": BM25Okapi(tokenized),
+            "docs": docs,
+            "ids": ids,
+            "metas": metas,
+        }
+        _bm25_cache[collection] = entry
+        logger.info(f"BM25 index built for '{collection}': {len(docs)} docs")
+        return entry
+    except Exception as exc:
+        logger.warning(f"BM25 index build failed for '{collection}': {exc}")
+        return None
+
+
+def _hybrid_search(
+    query: str,
+    collection: str,
+    k: int = 4,
+    fetch_k: int = 20,
+    rrf_k: int = 60,
+) -> List[Dict[str, Any]]:
+    """
+    Hybrid retrieval: ChromaDB vector search + BM25, fused via RRF.
+    Falls back to pure vector search if BM25 is unavailable.
+    """
+    # --- Vector search ---
+    q_emb = _emb.embed([query])[0]
+    vector_results: List[Dict[str, Any]] = _vs.search_in(collection, q_emb, k=fetch_k)
+
+    # --- BM25 search ---
+    bm25_entry = _get_bm25_index(collection)
+    if bm25_entry is None:
+        return vector_results[:k]
+
+    from rank_bm25 import BM25Okapi  # type: ignore (already imported above)
+    bm25: BM25Okapi = bm25_entry["bm25"]
+    bm25_docs: List[str] = bm25_entry["docs"]
+    bm25_ids: List[str] = bm25_entry["ids"]
+    bm25_metas: List[Dict] = bm25_entry["metas"]
+
+    scores = bm25.get_scores(query.lower().split())
+    top_bm25_idx = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:fetch_k]
+
+    # --- RRF fusion ---
+    rrf_scores: Dict[str, float] = {}
+    id_to_result: Dict[str, Dict[str, Any]] = {}
+
+    for rank, result in enumerate(vector_results):
+        rid = result["id"]
+        rrf_scores[rid] = rrf_scores.get(rid, 0.0) + 1.0 / (rrf_k + rank + 1)
+        id_to_result[rid] = result
+
+    for rank, idx in enumerate(top_bm25_idx):
+        rid = bm25_ids[idx]
+        rrf_scores[rid] = rrf_scores.get(rid, 0.0) + 1.0 / (rrf_k + rank + 1)
+        if rid not in id_to_result:
+            id_to_result[rid] = {
+                "id": rid,
+                "document": bm25_docs[idx],
+                "metadata": bm25_metas[idx],
+                "distance": None,
+            }
+
+    fused_ids = sorted(rrf_scores, key=lambda d: rrf_scores[d], reverse=True)
+    return [id_to_result[d] for d in fused_ids[:k]]
+
 
 @app.get("/")
 def root():
     return {"service": "GLIH Backend", "status": "ok", "endpoints": ["/health", "/config", "/query"]}
+
+
+@app.get("/debug/bm25")
+def debug_bm25(collection: str = "lineage-sops", q: str = "temperature breach dairy"):
+    entry = _get_bm25_index(collection)
+    if entry is None:
+        return {"status": "failed", "docs": 0}
+    scores = entry["bm25"].get_scores(q.lower().split())
+    top5 = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:5]
+    return {
+        "status": "ok",
+        "total_docs": len(entry["docs"]),
+        "query": q,
+        "top5": [{"id": entry["ids"][i], "score": round(float(scores[i]), 4), "snippet": entry["docs"][i][:120]} for i in top5],
+    }
 
 
 @app.get("/health")
@@ -132,7 +239,7 @@ def get_config():
 
 class IngestRequest(BaseModel):
     texts: List[str]
-    metadatas: List[Dict[str, Any]] | None = None
+    metadatas: Optional[List[Dict[str, Any]]] = None
     collection: Optional[str] = None
 
 
@@ -146,6 +253,7 @@ def ingest(req: IngestRequest):
         else:
             count = _vs.index(req.texts, embeddings, req.metadatas)
             coll_name = _vs.collection
+        _invalidate_bm25(coll_name)
         return {"ingested": count, "collection": coll_name, "provider": _vs.provider}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingest_failed: {e}")
@@ -163,7 +271,7 @@ def _llm_env_key_for(provider: str) -> str:
 
 class LLMSelectRequest(BaseModel):
     provider: str
-    model: str | None = None
+    model: Optional[str] = None
 
 
 @app.get("/llm/current")
@@ -222,7 +330,7 @@ def _emb_env_present_for(provider: str) -> bool:
 
 class EmbeddingsSelectRequest(BaseModel):
     provider: str
-    model: str | None = None
+    model: Optional[str] = None
 
 
 @app.get("/embeddings/current")
@@ -274,17 +382,45 @@ def embeddings_select(req: EmbeddingsSelectRequest):
 
 
 def _chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
-    chunk_size = chunk_size if chunk_size > 0 else 1000
-    overlap = overlap if overlap >= 0 else 0
+    """Split text into chunks that always end on a sentence boundary."""
+    import re as _re
+    chunk_size = max(200, chunk_size)
+    overlap = max(0, min(overlap, chunk_size - 1))
+
+    # Split into sentences on ". ", "! ", "? ", "\n" boundaries
+    sentence_ends = [m.end() for m in _re.finditer(r'(?<=[.!?])\s+|(?<=\n)', text)]
+    # Build sentence list with positions
+    positions = [0] + sentence_ends
+    sentences = [text[positions[i]:positions[i+1]] for i in range(len(positions)-1)]
+    if not sentences:
+        return [text.strip()] if text.strip() else []
+
     out: List[str] = []
-    i = 0
-    n = len(text)
-    step = max(1, chunk_size - overlap)
-    while i < n:
-        s = text[i : i + chunk_size]
-        if s.strip():
-            out.append(s)
-        i += step
+    start = 0  # index into sentences list
+    while start < len(sentences):
+        chunk_parts = []
+        length = 0
+        i = start
+        while i < len(sentences) and length + len(sentences[i]) <= chunk_size:
+            chunk_parts.append(sentences[i])
+            length += len(sentences[i])
+            i += 1
+        # If a single sentence is longer than chunk_size, include it anyway
+        if not chunk_parts and i < len(sentences):
+            chunk_parts.append(sentences[i])
+            i += 1
+        chunk = "".join(chunk_parts).strip()
+        if chunk:
+            out.append(chunk)
+        # Calculate overlap: step back from end by `overlap` characters worth of sentences
+        overlap_len = 0
+        next_start = i
+        for j in range(i - 1, start, -1):
+            overlap_len += len(sentences[j])
+            if overlap_len >= overlap:
+                next_start = j
+                break
+        start = max(start + 1, next_start)
     return out
 
 
@@ -363,6 +499,7 @@ async def ingest_file(files: List[UploadFile] = File(...), chunk_size: int = 100
         else:
             count = _vs.index(texts, embeddings, metas)
             coll_name = _vs.collection
+        _invalidate_bm25(coll_name)
         return {"ingested": count, "collection": coll_name, "provider": _vs.provider, "documents": len(files)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingest_file_failed: {e}")
@@ -375,47 +512,96 @@ class URLIngestRequest(BaseModel):
     collection: Optional[str] = None
 
 
-def _fetch_url_text(url: str) -> str:
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        ctype = r.headers.get("content-type", "").lower()
-        if "pdf" in ctype or url.lower().endswith(".pdf"):
-            return _normalize_text(_extract_pdf_bytes(r.content))
-        # Treat as text/HTML
-        text = r.text
-        # If HTML, parse
-        if "html" in ctype or ("<html" in text.lower()):
-            soup = BeautifulSoup(text, "html.parser")
-            # Remove non-content tags
-            for tag in soup(["script", "style", "noscript", "header", "nav", "footer", "aside", "form", "button"]):
-                tag.decompose()
-            # Remove common UI containers by class/id keywords
-            for el in soup.find_all(True):
-                cname = " ".join((el.get("class") or [])) + " " + (el.get("id") or "")
-                if any(k in cname.lower() for k in ["header", "footer", "nav", "menu", "sidebar", "cookie", "banner", "subscribe", "modal"]):
-                    el.decompose()
-            # Prefer main/article content if present
-            candidates = []
-            candidates.extend(soup.find_all("main"))
-            candidates.extend(soup.find_all("article"))
-            if candidates:
-                parts = [c.get_text(" ", strip=True) for c in candidates if c]
-                text = "\n".join(p for p in parts if p)
-            else:
-                text = soup.get_text(" ", strip=True)
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
+    "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
+
+def _fetch_url_text(url: str, max_retries: int = 3) -> str:
+    """Fetch URL content with retry logic for slow government sites."""
+    import time
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    
+    # Create session with retry strategy
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=max_retries,
+        backoff_factor=2,  # 2, 4, 8 seconds between retries
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            # Use tuple timeout: (connect_timeout, read_timeout)
+            # Government PDFs can be very slow - allow up to 180s read
+            # Disable SSL verification for government sites with cert issues
+            r = session.get(url, timeout=(30, 180), headers=_HEADERS, stream=True, verify=False)
+            r.raise_for_status()
+            
+            # For large files, read in chunks
+            content = b""
+            for chunk in r.iter_content(chunk_size=1024 * 1024):  # 1MB chunks
+                content += chunk
+            
+            ctype = r.headers.get("content-type", "").lower()
+            if "pdf" in ctype or url.lower().endswith(".pdf"):
+                return _normalize_text(_extract_pdf_bytes(content))
+            # Treat as text/HTML
+            text = content.decode("utf-8", errors="ignore")
+            # If HTML, parse
+            if "html" in ctype or ("<html" in text.lower()):
+                soup = BeautifulSoup(text, "html.parser")
+                # Remove non-content tags
+                for tag in soup(["script", "style", "noscript", "header", "nav", "footer", "aside", "form", "button"]):
+                    tag.decompose()
+                # Remove common UI containers by class/id keywords
+                for el in soup.find_all(True):
+                    cname = " ".join((el.get("class") or [])) + " " + (el.get("id") or "")
+                    if any(k in cname.lower() for k in ["header", "footer", "nav", "menu", "sidebar", "cookie", "banner", "subscribe", "modal"]):
+                        el.decompose()
+                # Prefer main/article content if present
+                candidates = []
+                candidates.extend(soup.find_all("main"))
+                candidates.extend(soup.find_all("article"))
+                if candidates:
+                    parts = [c.get_text(" ", strip=True) for c in candidates if c]
+                    text = "\n".join(p for p in parts if p)
+                else:
+                    text = soup.get_text(" ", strip=True)
+                return _normalize_text(text)
             return _normalize_text(text)
-        return _normalize_text(text)
-    except Exception as e:
-        raise RuntimeError(f"fetch_failed: {e}")
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)  # Exponential backoff
+                continue
+    raise RuntimeError(f"fetch_failed after {max_retries} attempts: {last_error}")
 
 
 @app.post("/ingest/url")
 def ingest_url(req: URLIngestRequest):
-    try:
-        texts: List[str] = []
-        metas: List[Dict[str, Any]] = []
-        for u in req.urls:
+    texts: List[str] = []
+    metas: List[Dict[str, Any]] = []
+    errors: List[str] = []
+    for u in req.urls:
+        try:
             raw = _fetch_url_text(u)
             doc_id = str(uuid.uuid4())
             chunks = _chunk_text(raw, req.chunk_size, req.overlap)
@@ -423,8 +609,12 @@ def ingest_url(req: URLIngestRequest):
                 if ch.strip():
                     texts.append(ch)
                     metas.append({"source_url": u, "doc_id": doc_id, "chunk_id": idx})
+        except Exception as e:
+            errors.append(f"{u}: {e}")
+    try:
         if not texts:
-            return {"ingested": 0, "collection": req.collection or _vs.collection, "provider": _vs.provider, "urls": len(req.urls)}
+            msg = "; ".join(errors) if errors else "no content extracted"
+            raise HTTPException(status_code=422, detail=f"0 chunks from all URLs — {msg}")
         embeddings = _emb.embed(texts)
         if req.collection:
             count = _vs.index_to(req.collection, texts, embeddings, metas)
@@ -432,7 +622,10 @@ def ingest_url(req: URLIngestRequest):
         else:
             count = _vs.index(texts, embeddings, metas)
             coll_name = _vs.collection
-        return {"ingested": count, "collection": coll_name, "provider": _vs.provider, "urls": len(req.urls)}
+        _invalidate_bm25(coll_name)
+        return {"ingested": count, "collection": coll_name, "provider": _vs.provider, "urls": len(req.urls) - len(errors), "errors": errors}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ingest_url_failed: {e}")
 
@@ -441,13 +634,19 @@ def ingest_url(req: URLIngestRequest):
 def query(q: str = "hello", k: int = 4, collection: Optional[str] = None, max_distance: Optional[float] = None, style: str = "concise"):
     logger.info(f"Query received: q='{q[:50]}...', collection={collection}, k={k}, max_distance={max_distance}, style={style}")
     try:
-        q_emb = _emb.embed([q])[0]
-        if collection:
-            results = _vs.search_in(collection, q_emb, k=k)
-            coll_name = collection
-        else:
-            results = _vs.search(q_emb, k=k)
-            coll_name = _vs.collection
+        coll_name = collection or _vs.collection
+        fetch_k = min(k * 5, 40)
+        results = _hybrid_search(q, coll_name, k=k, fetch_k=fetch_k)
+        # Deduplicate by doc_id+chunk_id (same chunk ingested multiple times)
+        seen: set = set()
+        deduped = []
+        for r in results:
+            md = r.get("metadata") or {}
+            key = (md.get("doc_id"), md.get("chunk_id"), (r.get("document") or "")[:100])
+            if key not in seen:
+                seen.add(key)
+                deduped.append(r)
+        results = deduped
         # Filter/sort results by distance if requested
         if max_distance is not None:
             results = [r for r in results if r.get("distance") is None or r.get("distance") <= max_distance]
@@ -565,3 +764,710 @@ def reset_collection(name: str):
     except Exception as e:
         logger.error(f"reset_collection failed for {name}: {e}")
         raise HTTPException(status_code=500, detail=f"reset_collection_failed: {e}")
+
+
+# ─────────────────────────────────────────────────────────────
+# Agent endpoints — wire real LLM + vector search into agents
+# ─────────────────────────────────────────────────────────────
+
+import sys as _sys
+import os as _os
+_agents_src = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "../../../../glih-agents/src"))
+if _agents_src not in _sys.path:
+    _sys.path.insert(0, _agents_src)
+
+from glih_agents.anomaly_responder import AnomalyResponder
+from glih_agents.route_advisor import RouteAdvisor
+from glih_agents.customer_notifier import CustomerNotifier
+from glih_agents.ops_summarizer import OpsSummarizer
+
+
+def _make_vector_search_fn():
+    """Return a closure that searches the vector store."""
+    def _search(query: str, collection: str = "lineage-sops", k: int = 4) -> List[Dict[str, Any]]:
+        emb = _emb.embed([query])[0]
+        return _vs.search_in(collection, emb, k=k)
+    return _search
+
+
+def _make_llm_fn():
+    """Return a closure that calls the LLM."""
+    def _generate(prompt: str) -> str:
+        return _llm.generate(prompt)
+    return _generate
+
+
+class AnomalyRequest(BaseModel):
+    shipment_id: str
+    temperature_c: float
+    product_type: Optional[str] = "Dairy"
+    threshold_min_c: Optional[float] = 0.0
+    threshold_max_c: Optional[float] = 4.0
+    location: Optional[str] = "Unknown"
+    breach_duration_min: Optional[int] = 0
+
+
+@app.post("/agents/anomaly")
+def run_anomaly_agent(req: AnomalyRequest):
+    start = time.time()
+    try:
+        agent = AnomalyResponder(_cfg)
+        event = {
+            "shipment_id": req.shipment_id,
+            "temperature": req.temperature_c,
+            "product_type": req.product_type,
+            "location": req.location,
+            "duration_minutes": req.breach_duration_min,
+        }
+        result = agent.respond_to_anomaly(event, _make_vector_search_fn(), _make_llm_fn())
+        duration_ms = int((time.time() - start) * 1000)
+        logger.info(f"anomaly_agent completed in {duration_ms}ms for {req.shipment_id}")
+        return {"run_id": str(uuid.uuid4()), "agent_name": "AnomalyResponder", "status": "success",
+                "result": result, "duration_ms": duration_ms}
+    except Exception as e:
+        logger.error(f"anomaly_agent failed: {e}")
+        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+
+
+class RouteRequest(BaseModel):
+    shipment_id: str
+    origin: str
+    destination: str
+    product_type: Optional[str] = "Seafood"
+    start_time: Optional[str] = None
+    constraints: Optional[Dict[str, Any]] = {}
+
+
+@app.post("/agents/route")
+def run_route_agent(req: RouteRequest):
+    start = time.time()
+    try:
+        agent = RouteAdvisor(_cfg)
+        from datetime import datetime as _dt
+        request_data = {
+            "shipment_id": req.shipment_id,
+            "origin": req.origin,
+            "destination": req.destination,
+            "product_type": req.product_type,
+            "start_time": req.start_time or _dt.now().isoformat(),
+            "constraints": req.constraints or {},
+        }
+        result = agent.advise_route(request_data, _make_vector_search_fn(), _make_llm_fn())
+        duration_ms = int((time.time() - start) * 1000)
+        logger.info(f"route_agent completed in {duration_ms}ms")
+        return {"run_id": str(uuid.uuid4()), "agent_name": "RouteAdvisor", "status": "success",
+                "result": result, "duration_ms": duration_ms}
+    except Exception as e:
+        logger.error(f"route_agent failed: {e}")
+        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+
+
+class NotifyRequest(BaseModel):
+    shipment_id: str
+    customer_id: str
+    notification_type: str
+    severity: Optional[str] = "low"
+    details: Optional[Dict[str, Any]] = {}
+
+
+@app.post("/agents/notify")
+def run_notify_agent(req: NotifyRequest):
+    start = time.time()
+    try:
+        agent = CustomerNotifier(_cfg)
+        request_data = {
+            "shipment_id": req.shipment_id,
+            "customer_id": req.customer_id,
+            "notification_type": req.notification_type,
+            "severity": req.severity,
+            "details": req.details or {},
+        }
+        result = agent.notify_customer(request_data, _make_llm_fn())
+        duration_ms = int((time.time() - start) * 1000)
+        logger.info(f"notify_agent completed in {duration_ms}ms")
+        return {"run_id": str(uuid.uuid4()), "agent_name": "CustomerNotifier", "status": "success",
+                "result": result, "duration_ms": duration_ms}
+    except Exception as e:
+        logger.error(f"notify_agent failed: {e}")
+        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+
+
+class OpsSummaryRequest(BaseModel):
+    time_window: Optional[str] = "24h"
+    facility: Optional[str] = "all"
+
+
+@app.post("/agents/ops-summary")
+def run_ops_summary_agent(req: OpsSummaryRequest):
+    start = time.time()
+    try:
+        agent = OpsSummarizer(_cfg)
+        request_data = {"time_window": req.time_window, "facility": req.facility}
+        result = agent.summarize_ops(req.time_window, _make_vector_search_fn(), _make_llm_fn())
+        duration_ms = int((time.time() - start) * 1000)
+        logger.info(f"ops_summary_agent completed in {duration_ms}ms")
+        return {"run_id": str(uuid.uuid4()), "agent_name": "OpsSummarizer", "status": "success",
+                "result": result, "duration_ms": duration_ms}
+    except Exception as e:
+        logger.error(f"ops_summary_agent failed: {e}")
+        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+
+
+# ===========================================================================
+# Settings & MCP Connector Management
+# ===========================================================================
+
+class MCPConnectorConfig(BaseModel):
+    """Configuration for an MCP connector"""
+    enabled: bool = True
+    api_key: Optional[str] = None
+    api_token: Optional[str] = None
+    endpoint: Optional[str] = None
+    mqtt_broker: Optional[str] = None
+    mqtt_port: Optional[int] = 1883
+    mqtt_username: Optional[str] = None
+    mqtt_password: Optional[str] = None
+    api_endpoint: Optional[str] = None
+    mode: Optional[str] = "demo"
+    provider: Optional[str] = None
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Request to update settings"""
+    section: str  # e.g., "mcp.connectors.gps_trace"
+    values: Dict[str, Any]
+
+
+@app.get("/settings")
+def get_settings():
+    """Get current settings (sanitized - no secrets exposed)"""
+    try:
+        cfg = load_config()
+        # Sanitize sensitive fields
+        safe_cfg = sanitize_config(cfg)
+        return {"settings": safe_cfg}
+    except Exception as e:
+        logger.error(f"get_settings failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/settings/mcp")
+def get_mcp_settings():
+    """Get MCP connector settings with status"""
+    try:
+        cfg = load_config()
+        mcp_cfg = cfg.get("mcp", {})
+        connectors = mcp_cfg.get("connectors", {})
+        
+        # Build connector status
+        connector_status = []
+        for name, config in connectors.items():
+            # Check if API key/token is configured
+            has_credentials = bool(
+                config.get("api_key") or 
+                config.get("api_token") or 
+                config.get("mqtt_broker") or
+                config.get("api_endpoint")
+            )
+            connector_status.append({
+                "id": name,
+                "name": _format_connector_name(name),
+                "enabled": config.get("enabled", False),
+                "configured": has_credentials,
+                "mode": "real" if has_credentials else "demo",
+                "description": config.get("description", ""),
+                "endpoint": config.get("endpoint", config.get("api_endpoint", "")),
+            })
+        
+        return {
+            "enabled": mcp_cfg.get("enabled", False),
+            "connectors": connector_status,
+            "timeout_seconds": mcp_cfg.get("timeout_seconds", 30),
+        }
+    except Exception as e:
+        logger.error(f"get_mcp_settings failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _format_connector_name(key: str) -> str:
+    """Format connector key to display name"""
+    names = {
+        "gps_trace": "GPS-Trace (Truck Tracking)",
+        "openweathermap": "OpenWeatherMap (Weather)",
+        "iot": "Lineage IoT Sensors",
+        "traffic": "Traffic & Routing",
+    }
+    return names.get(key, key.replace("_", " ").title())
+
+
+@app.put("/settings/mcp/connector/{connector_id}")
+def update_mcp_connector(connector_id: str, config: MCPConnectorConfig):
+    """Update a specific MCP connector configuration"""
+    try:
+        cfg = load_config()
+        
+        # Ensure mcp.connectors exists
+        if "mcp" not in cfg:
+            cfg["mcp"] = {}
+        if "connectors" not in cfg["mcp"]:
+            cfg["mcp"]["connectors"] = {}
+        if connector_id not in cfg["mcp"]["connectors"]:
+            cfg["mcp"]["connectors"][connector_id] = {}
+        
+        # Update only non-None values
+        connector_cfg = cfg["mcp"]["connectors"][connector_id]
+        update_data = config.model_dump(exclude_none=True)
+        
+        for key, value in update_data.items():
+            if value is not None:
+                connector_cfg[key] = value
+        
+        # Save config
+        save_config(cfg)
+        logger.info(f"Updated MCP connector: {connector_id}")
+        
+        return {
+            "status": "updated",
+            "connector_id": connector_id,
+            "configured": bool(
+                connector_cfg.get("api_key") or 
+                connector_cfg.get("api_token") or
+                connector_cfg.get("mqtt_broker") or
+                connector_cfg.get("api_endpoint")
+            )
+        }
+    except Exception as e:
+        logger.error(f"update_mcp_connector failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/settings/mcp/test/{connector_id}")
+async def test_mcp_connector(connector_id: str):
+    """Test connection to an MCP connector"""
+    try:
+        cfg = load_config()
+        connector_cfg = cfg.get("mcp", {}).get("connectors", {}).get(connector_id, {})
+        
+        if not connector_cfg:
+            return {"status": "not_configured", "message": f"Connector {connector_id} not found"}
+        
+        # Import MCP clients
+        from ..mcp_client import GPSTraceMCPClient, OpenWeatherMCPClient, LineageIoTMCPClient
+        
+        result = {"connector_id": connector_id, "status": "unknown"}
+        
+        if connector_id == "gps_trace":
+            client = GPSTraceMCPClient(api_token=connector_cfg.get("api_token"))
+            if not client.is_configured:
+                result = {"status": "demo", "message": "No API token configured - running in demo mode"}
+            else:
+                connected = await client.connect()
+                await client.disconnect()
+                result = {"status": "connected" if connected else "failed", 
+                         "message": "Connection successful" if connected else "Failed to connect"}
+        
+        elif connector_id == "openweathermap":
+            client = OpenWeatherMCPClient(api_key=connector_cfg.get("api_key"))
+            if not client.is_configured:
+                result = {"status": "demo", "message": "No API key configured - running in demo mode"}
+            else:
+                connected = await client.connect()
+                await client.disconnect()
+                result = {"status": "connected" if connected else "failed",
+                         "message": "Connection successful" if connected else "Failed to connect - check API key"}
+        
+        elif connector_id == "iot":
+            client = LineageIoTMCPClient(
+                mqtt_broker=connector_cfg.get("mqtt_broker"),
+                api_endpoint=connector_cfg.get("api_endpoint"),
+                api_key=connector_cfg.get("api_key")
+            )
+            if not client.is_configured:
+                result = {"status": "demo", "message": "No broker/endpoint configured - running in demo mode"}
+            else:
+                connected = await client.connect()
+                await client.disconnect()
+                result = {"status": "connected" if connected else "failed",
+                         "message": "Connection successful" if connected else "Failed to connect"}
+        
+        else:
+            result = {"status": "unknown", "message": f"Unknown connector: {connector_id}"}
+        
+        return result
+    except Exception as e:
+        logger.error(f"test_mcp_connector failed: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ===========================================================================
+# MCP Server Endpoints (Custom Lineage IoT)
+# ===========================================================================
+
+# Lazy-initialize MCP server
+_mcp_server = None
+_mcp_server_initialized = False
+
+async def _get_mcp_server():
+    global _mcp_server, _mcp_server_initialized
+    if _mcp_server is None:
+        from ..mcp_server import get_mcp_server
+        # Check if IoT is in demo mode
+        iot_cfg = _cfg.get("mcp", {}).get("connectors", {}).get("iot", {})
+        demo_mode = iot_cfg.get("mode", "demo") == "demo" or not (
+            iot_cfg.get("mqtt_broker") or iot_cfg.get("api_endpoint")
+        )
+        _mcp_server = get_mcp_server(demo_mode=demo_mode)
+    
+    if not _mcp_server_initialized:
+        await _mcp_server.initialize()
+        _mcp_server_initialized = True
+    
+    return _mcp_server
+
+
+@app.get("/mcp/tools")
+async def get_mcp_tools():
+    """List available MCP tools"""
+    server = await _get_mcp_server()
+    return {"tools": server.get_tools(), "demo_mode": server.demo_mode}
+
+
+@app.post("/mcp/call/{tool_name}")
+async def call_mcp_tool(tool_name: str, arguments: Optional[Dict[str, Any]] = None):
+    """Call an MCP tool"""
+    try:
+        server = await _get_mcp_server()
+        result = await server.call_tool(tool_name, arguments or {})
+        return {"tool": tool_name, "result": result, "demo_mode": server.demo_mode}
+    except Exception as e:
+        logger.error(f"MCP tool call failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/mcp/trucks")
+async def get_trucks():
+    """Get all tracked trucks"""
+    server = await _get_mcp_server()
+    trucks = await server.get_all_trucks()
+    return {"trucks": trucks, "count": len(trucks), "demo_mode": server.demo_mode}
+
+
+@app.get("/mcp/trucks/{truck_id}")
+async def get_truck(truck_id: str):
+    """Get specific truck status"""
+    server = await _get_mcp_server()
+    truck = await server.get_truck(truck_id)
+    if not truck:
+        raise HTTPException(status_code=404, detail=f"Truck {truck_id} not found")
+    return {"truck": truck, "demo_mode": server.demo_mode}
+
+
+@app.get("/mcp/sensors")
+async def get_sensors(sensor_type: Optional[str] = None, location: Optional[str] = None):
+    """Get IoT sensor readings"""
+    server = await _get_mcp_server()
+    sensors = await server.get_all_sensors(sensor_type, location)
+    return {"sensors": sensors, "count": len(sensors), "demo_mode": server.demo_mode}
+
+
+@app.get("/mcp/alerts/temperature")
+async def get_temperature_alerts(threshold: float = 2.0):
+    """Get temperature alerts"""
+    server = await _get_mcp_server()
+    alerts = await server.get_temperature_alerts(threshold)
+    return {"alerts": alerts, "count": len(alerts), "demo_mode": server.demo_mode}
+
+
+@app.get("/mcp/facility/{facility}")
+async def get_facility_status(facility: str):
+    """Get facility status"""
+    server = await _get_mcp_server()
+    status = await server.get_facility_status(facility)
+    return {"facility": status, "demo_mode": server.demo_mode}
+
+
+# ===========================================================================
+# Fleet / Truck Management
+# ===========================================================================
+
+import json
+from pathlib import Path
+
+# Store trucks in a JSON file for persistence
+TRUCKS_FILE = Path(__file__).parent.parent.parent.parent.parent / "data" / "trucks.json"
+TRUCKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+def _load_trucks() -> List[Dict[str, Any]]:
+    """Load trucks from JSON file"""
+    if TRUCKS_FILE.exists():
+        try:
+            return json.loads(TRUCKS_FILE.read_text())
+        except:
+            return []
+    return []
+
+def _save_trucks(trucks: List[Dict[str, Any]]):
+    """Save trucks to JSON file"""
+    TRUCKS_FILE.write_text(json.dumps(trucks, indent=2, default=str))
+
+
+class TruckCreate(BaseModel):
+    """Model for creating a truck"""
+    truck_id: str
+    driver_name: str
+    device_id: Optional[str] = None
+    license_plate: Optional[str] = None
+    reefer_equipped: bool = True
+    home_facility: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TruckUpdate(BaseModel):
+    """Model for updating a truck"""
+    driver_name: Optional[str] = None
+    device_id: Optional[str] = None
+    license_plate: Optional[str] = None
+    reefer_equipped: Optional[bool] = None
+    home_facility: Optional[str] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None
+
+
+class BulkTruckImport(BaseModel):
+    """Model for bulk importing trucks"""
+    trucks: List[TruckCreate]
+
+
+@app.get("/fleet/trucks")
+async def list_fleet_trucks(
+    active_only: bool = True,
+    facility: Optional[str] = None,
+    include_live_data: bool = True
+):
+    """List all trucks in the fleet with optional live GPS data"""
+    trucks = _load_trucks()
+    
+    # Filter by active status
+    if active_only:
+        trucks = [t for t in trucks if t.get("active", True)]
+    
+    # Filter by facility
+    if facility:
+        trucks = [t for t in trucks if t.get("home_facility", "").lower() == facility.lower()]
+    
+    # Merge with live GPS data if available
+    if include_live_data:
+        try:
+            server = await _get_mcp_server()
+            live_trucks = await server.get_all_trucks()
+            live_map = {t["truck_id"]: t for t in live_trucks}
+            
+            for truck in trucks:
+                if truck["truck_id"] in live_map:
+                    live = live_map[truck["truck_id"]]
+                    truck["live_data"] = {
+                        "lat": live.get("lat"),
+                        "lon": live.get("lon"),
+                        "speed_kmh": live.get("speed_kmh"),
+                        "reefer_temp_c": live.get("reefer_temp_c"),
+                        "status": live.get("status"),
+                        "last_updated": live.get("last_updated"),
+                    }
+        except Exception as e:
+            logger.warning(f"Could not fetch live truck data: {e}")
+    
+    return {"trucks": trucks, "count": len(trucks)}
+
+
+@app.post("/fleet/trucks")
+async def create_fleet_truck(truck: TruckCreate):
+    """Register a new truck in the fleet"""
+    trucks = _load_trucks()
+    
+    # Check for duplicate truck_id
+    if any(t["truck_id"] == truck.truck_id for t in trucks):
+        raise HTTPException(status_code=400, detail=f"Truck {truck.truck_id} already exists")
+    
+    new_truck = {
+        **truck.dict(),
+        "active": True,
+        "created_at": datetime.now().isoformat(),
+        "source": "manual",
+    }
+    trucks.append(new_truck)
+    _save_trucks(trucks)
+    
+    return {"message": "Truck created", "truck": new_truck}
+
+
+@app.put("/fleet/trucks/{truck_id}")
+async def update_fleet_truck(truck_id: str, update: TruckUpdate):
+    """Update a truck's information"""
+    trucks = _load_trucks()
+    
+    for i, t in enumerate(trucks):
+        if t["truck_id"] == truck_id:
+            for key, value in update.dict(exclude_none=True).items():
+                trucks[i][key] = value
+            trucks[i]["updated_at"] = datetime.now().isoformat()
+            _save_trucks(trucks)
+            return {"message": "Truck updated", "truck": trucks[i]}
+    
+    raise HTTPException(status_code=404, detail=f"Truck {truck_id} not found")
+
+
+@app.delete("/fleet/trucks/{truck_id}")
+async def delete_fleet_truck(truck_id: str, hard_delete: bool = False):
+    """Delete or deactivate a truck"""
+    trucks = _load_trucks()
+    
+    for i, t in enumerate(trucks):
+        if t["truck_id"] == truck_id:
+            if hard_delete:
+                trucks.pop(i)
+                _save_trucks(trucks)
+                return {"message": f"Truck {truck_id} permanently deleted"}
+            else:
+                trucks[i]["active"] = False
+                trucks[i]["deactivated_at"] = datetime.now().isoformat()
+                _save_trucks(trucks)
+                return {"message": f"Truck {truck_id} deactivated"}
+    
+    raise HTTPException(status_code=404, detail=f"Truck {truck_id} not found")
+
+
+@app.post("/fleet/trucks/bulk")
+async def bulk_import_trucks(data: BulkTruckImport):
+    """Bulk import trucks from CSV/Excel data"""
+    trucks = _load_trucks()
+    existing_ids = {t["truck_id"] for t in trucks}
+    
+    created = 0
+    skipped = 0
+    errors = []
+    
+    for truck in data.trucks:
+        if truck.truck_id in existing_ids:
+            skipped += 1
+            continue
+        try:
+            new_truck = {
+                **truck.dict(),
+                "active": True,
+                "created_at": datetime.now().isoformat(),
+                "source": "bulk_import",
+            }
+            trucks.append(new_truck)
+            existing_ids.add(truck.truck_id)
+            created += 1
+        except Exception as e:
+            errors.append({"truck_id": truck.truck_id, "error": str(e)})
+    
+    _save_trucks(trucks)
+    
+    return {
+        "message": f"Bulk import complete",
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "total": len(trucks),
+    }
+
+
+@app.post("/fleet/sync/gps-trace")
+async def sync_gps_trace_trucks():
+    """Sync trucks from GPS-Trace API"""
+    # Check if GPS-Trace is configured
+    gps_cfg = _cfg.get("mcp", {}).get("connectors", {}).get("gps_trace", {})
+    if not gps_cfg.get("api_token"):
+        return {"status": "skipped", "message": "GPS-Trace API token not configured"}
+    
+    try:
+        from ..mcp_client import get_mcp_manager
+        manager = get_mcp_manager()
+        
+        # Fetch trucks from GPS-Trace
+        gps_trucks = await manager.gps_trace.get_units()
+        
+        if not gps_trucks:
+            return {"status": "no_data", "message": "No trucks found in GPS-Trace"}
+        
+        # Merge with existing trucks
+        trucks = _load_trucks()
+        existing_ids = {t["truck_id"]: i for i, t in enumerate(trucks)}
+        
+        synced = 0
+        added = 0
+        
+        for gt in gps_trucks:
+            truck_id = gt.get("unit_id") or gt.get("id")
+            if not truck_id:
+                continue
+            
+            if truck_id in existing_ids:
+                # Update existing truck with GPS data
+                idx = existing_ids[truck_id]
+                trucks[idx]["device_id"] = gt.get("device_id")
+                trucks[idx]["gps_trace_synced"] = datetime.now().isoformat()
+                synced += 1
+            else:
+                # Add new truck from GPS-Trace
+                trucks.append({
+                    "truck_id": truck_id,
+                    "driver_name": gt.get("driver", "Unknown"),
+                    "device_id": gt.get("device_id"),
+                    "license_plate": gt.get("plate"),
+                    "reefer_equipped": True,
+                    "active": True,
+                    "created_at": datetime.now().isoformat(),
+                    "source": "gps_trace",
+                })
+                added += 1
+        
+        _save_trucks(trucks)
+        
+        return {
+            "status": "success",
+            "synced": synced,
+            "added": added,
+            "total": len(trucks),
+        }
+    except Exception as e:
+        logger.error(f"GPS-Trace sync failed: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/fleet/stats")
+async def get_fleet_stats():
+    """Get fleet statistics"""
+    trucks = _load_trucks()
+    active = [t for t in trucks if t.get("active", True)]
+    
+    # Get live status counts
+    try:
+        server = await _get_mcp_server()
+        live_trucks = await server.get_all_trucks()
+        in_transit = sum(1 for t in live_trucks if t.get("status") == "in_transit")
+        idle = sum(1 for t in live_trucks if t.get("status") == "idle")
+        offline = len(active) - len(live_trucks)
+    except:
+        in_transit = 0
+        idle = 0
+        offline = len(active)
+    
+    # Count by facility
+    by_facility = {}
+    for t in active:
+        fac = t.get("home_facility", "Unassigned")
+        by_facility[fac] = by_facility.get(fac, 0) + 1
+    
+    return {
+        "total": len(trucks),
+        "active": len(active),
+        "inactive": len(trucks) - len(active),
+        "in_transit": in_transit,
+        "idle": idle,
+        "offline": offline,
+        "by_facility": by_facility,
+        "reefer_equipped": sum(1 for t in active if t.get("reefer_equipped", True)),
+    }

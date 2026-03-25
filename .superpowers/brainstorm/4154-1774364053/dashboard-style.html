@@ -1,0 +1,93 @@
+<h2>Dashboard Visual Direction</h2>
+<p class="subtitle">The primary control room — ops teams and managers will live here. What should it feel like?</p>
+
+<div class="cards">
+  <div class="card" data-choice="dark-ops" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0f1e;padding:1.25rem;border-radius:6px;font-family:monospace">
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">
+        <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;margin-top:3px"></div>
+        <div style="color:#22d3ee;font-size:0.7rem;font-weight:700;letter-spacing:2px">LINEAGE COLD CHAIN OPS</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">
+        <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem;text-align:center">
+          <div style="color:#22d3ee;font-size:1.2rem;font-weight:700">847</div>
+          <div style="color:#475569;font-size:0.6rem">ACTIVE SHIPMENTS</div>
+        </div>
+        <div style="background:#0f172a;border:1px solid #7c3aed33;border-radius:4px;padding:0.5rem;text-align:center">
+          <div style="color:#f59e0b;font-size:1.2rem;font-weight:700">3</div>
+          <div style="color:#475569;font-size:0.6rem">TEMP ALERTS</div>
+        </div>
+        <div style="background:#0f172a;border:1px solid #064e3b;border-radius:4px;padding:0.5rem;text-align:center">
+          <div style="color:#10b981;font-size:1.2rem;font-weight:700">99.1%</div>
+          <div style="color:#475569;font-size:0.6rem">COMPLIANCE</div>
+        </div>
+      </div>
+      <div style="background:#0f172a;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+        <div style="color:#22d3ee;font-size:0.6rem;margin-bottom:0.35rem">● LIVE FEED</div>
+        <div style="color:#64748b;font-size:0.55rem;line-height:1.6">
+          12:04:22 — TX-CHI-2025-001 temp 0.5°C ✓<br>
+          12:04:18 — CHI-ATL-2025-089 BREACH 5.2°C ⚠<br>
+          12:04:11 — LA-SEA-2025-156 delivered ✓
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Dark Ops Command Center</h3>
+      <p>Deep navy/teal — feels like a logistics operations hub. High-contrast alerts, live data feeds. Serious, industrial, built for night shifts.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="clean-enterprise" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:1.25rem;border-radius:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+        <div style="color:#0f172a;font-size:0.7rem;font-weight:700">Lineage Intelligence Platform</div>
+        <div style="background:#6366f1;color:white;font-size:0.55rem;padding:2px 8px;border-radius:999px">LIVE</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="color:#0f172a;font-size:1.2rem;font-weight:700">847</div>
+          <div style="color:#94a3b8;font-size:0.6rem">Active Shipments</div>
+        </div>
+        <div style="background:white;border:1px solid #fef3c7;border-radius:6px;padding:0.5rem;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="color:#d97706;font-size:1.2rem;font-weight:700">3</div>
+          <div style="color:#94a3b8;font-size:0.6rem">Temperature Alerts</div>
+        </div>
+        <div style="background:white;border:1px solid #dcfce7;border-radius:6px;padding:0.5rem;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <div style="color:#16a34a;font-size:1.2rem;font-weight:700">99.1%</div>
+          <div style="color:#94a3b8;font-size:0.6rem">Compliance</div>
+        </div>
+      </div>
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+        <div style="color:#64748b;font-size:0.6rem;margin-bottom:0.35rem;font-weight:600">Recent Activity</div>
+        <div style="color:#94a3b8;font-size:0.55rem;line-height:1.6">
+          TX-CHI-2025-001 — Temperature compliant ✓<br>
+          CHI-ATL-2025-089 — Breach detected ⚠️<br>
+          LA-SEA-2025-156 — Delivered ✓
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Clean Enterprise Light</h3>
+      <p>White/slate — familiar enterprise SaaS feel. Easy on the eyes for day shifts, professional for executive demos. Similar to NEXUS style.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dual-theme" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#0a0f1e 50%,#f8fafc 50%);padding:1.25rem;border-radius:6px;display:flex;align-items:center;justify-content:center;min-height:140px">
+      <div style="text-align:center">
+        <div style="color:#22d3ee;font-size:0.75rem;font-weight:700;margin-bottom:0.5rem">☀ / ☾</div>
+        <div style="color:#94a3b8;font-size:0.65rem">Light + Dark mode toggle</div>
+        <div style="color:#64748b;font-size:0.55rem;margin-top:0.25rem">User preference, persisted per account</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Both (User Toggle)</h3>
+      <p>Full light and dark themes — user picks. Day shift prefers light, night ops prefers dark. Persisted per account. More build time but covers every use case.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1.5rem;padding:1rem;background:rgba(99,102,241,0.08);border-radius:8px;border-left:3px solid #6366f1">
+  <p class="label">Recommendation</p>
+  <p style="margin:0.25rem 0 0">Dark Ops Command Center — it sets GLIH apart from generic enterprise SaaS dashboards. A cold chain ops center should look like one. It photographs better for demos and screenshares, and is distinct from NEXUS (light) and Legal AI (light). You get a recognisable visual identity for this product.</p>
+</div>

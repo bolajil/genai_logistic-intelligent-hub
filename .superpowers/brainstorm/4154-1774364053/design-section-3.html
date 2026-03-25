@@ -1,0 +1,142 @@
+<h2>Design Section 3 — Frontend Pages & Demo Scenarios</h2>
+<p class="subtitle">Next.js 14 Dark Ops UI — what each page does and the 6 built-in demo scenarios</p>
+
+<div class="mockup">
+  <div class="mockup-header">Next.js App — Page Structure</div>
+  <div class="mockup-body" style="background:#070d1a;padding:1.25rem;font-family:monospace;font-size:0.68rem;line-height:1.9">
+
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:0;height:340px">
+
+      <!-- Sidebar -->
+      <div style="background:#0a0f1e;border-right:1px solid #1e3a5f;padding:0.75rem 0;overflow:hidden">
+        <div style="padding:0.5rem 0.75rem;color:#22d3ee;font-size:0.65rem;font-weight:700;letter-spacing:2px;margin-bottom:0.5rem">GLIH OPS</div>
+        <div style="padding:0.35rem 0.75rem;color:#e2e8f0;font-size:0.62rem;background:#0f1f3d;border-right:2px solid #22d3ee">⬡ Dashboard</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">⚡ Agents</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">🚚 Shipments</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">🌡 Alerts</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">📊 Analytics</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">📁 Documents</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">⚙ Settings</div>
+        <div style="padding:0.35rem 0.75rem;color:#64748b;font-size:0.62rem">🔒 Admin</div>
+        <div style="position:absolute;bottom:0.75rem;padding:0.35rem 0.75rem;font-size:0.6rem">
+          <div style="color:#10b981;margin-bottom:0.2rem">● DEMO MODE</div>
+          <div style="color:#475569">WMS · IoT · Docs</div>
+        </div>
+      </div>
+
+      <!-- Main area -->
+      <div style="background:#070d1a;padding:0.75rem;overflow:hidden">
+        <div style="color:#e2e8f0;font-size:0.65rem;font-weight:700;margin-bottom:0.6rem">Operations Dashboard — Live</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.4rem;margin-bottom:0.6rem">
+          <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.4rem;text-align:center">
+            <div style="color:#22d3ee;font-size:1rem;font-weight:700">847</div>
+            <div style="color:#475569;font-size:0.55rem">Shipments</div>
+          </div>
+          <div style="background:#0f1f3d;border:1px solid #7c3aed33;border-radius:4px;padding:0.4rem;text-align:center">
+            <div style="color:#f59e0b;font-size:1rem;font-weight:700">3</div>
+            <div style="color:#475569;font-size:0.55rem">Active Alerts</div>
+          </div>
+          <div style="background:#0f1f3d;border:1px solid #064e3b;border-radius:4px;padding:0.4rem;text-align:center">
+            <div style="color:#10b981;font-size:1rem;font-weight:700">99.1%</div>
+            <div style="color:#475569;font-size:0.55rem">Compliance</div>
+          </div>
+          <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.4rem;text-align:center">
+            <div style="color:#a78bfa;font-size:1rem;font-weight:700">94.2%</div>
+            <div style="color:#475569;font-size:0.55rem">On-Time</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem">
+          <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+            <div style="color:#22d3ee;font-size:0.58rem;margin-bottom:0.3rem">● LIVE SENSOR FEED</div>
+            <div style="color:#475569;font-size:0.55rem;line-height:1.7">
+              TX-CHI-001 &nbsp;🌡 0.5°C &nbsp;✓<br>
+              CHI-ATL-089 🌡 5.2°C &nbsp;⚠ BREACH<br>
+              LA-SEA-156 &nbsp;🌡 -20°C ✓
+            </div>
+          </div>
+          <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:4px;padding:0.5rem">
+            <div style="color:#22d3ee;font-size:0.58rem;margin-bottom:0.3rem">⚡ AGENT ACTIVITY</div>
+            <div style="color:#475569;font-size:0.55rem;line-height:1.7">
+              AnomalyResponder → CHI-ATL ⚡<br>
+              CustomerNotifier → sent ✓<br>
+              OpsSummarizer → 08:00 report ✓
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top:1rem">
+  <h3 style="color:#e2e8f0;margin-bottom:0.75rem">Page Descriptions</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.72rem">
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">⬡ Dashboard</div>
+      <div style="color:#64748b">KPI cards, live sensor feed, agent activity log, shipment map, alert ticker. SSE-powered — updates without refresh.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">⚡ Agents</div>
+      <div style="color:#64748b">Run any of the 4 agents manually. Select agent, fill input form or pick a demo preset, see structured result with LLM reasoning, SOP citations, and action plan.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">🚚 Shipments</div>
+      <div style="color:#64748b">Searchable shipment table. Click any shipment for detail: temperature history chart, GPS trail, all events, compliance status, linked documents.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">🌡 Alerts</div>
+      <div style="color:#64748b">All active and resolved alerts. Filter by severity, type, shipment. Each alert shows agent response, actions taken, SOP applied, and resolution time.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">📊 Analytics</div>
+      <div style="color:#64748b">On-time %, temp compliance, food waste prevention, cost savings, agent run history. Charts powered by Recharts. Export to PDF/CSV.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">📁 Documents</div>
+      <div style="color:#64748b">Ingest documents (drag-drop or URL). RAG query interface. Collection management. Search results with citations. SOP viewer.</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">⚙ Settings</div>
+      <div style="color:#64748b">Per-connection Demo/Real toggles for WMS, IoT, Docs. LLM provider selection. Embedding model. Notification channels (email, SMS, webhook).</div>
+    </div>
+    <div style="background:#0f1f3d;border:1px solid #1e3a5f;border-radius:6px;padding:0.75rem">
+      <div style="color:#22d3ee;font-weight:700;margin-bottom:0.25rem">🔒 Admin</div>
+      <div style="color:#64748b">User management, RBAC roles, API key management, audit log, Langfuse link, system health. Admin-role only.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:1.25rem">
+  <h3 style="color:#e2e8f0;margin-bottom:0.75rem">6 Built-In Demo Scenarios</h3>
+  <div style="display:grid;grid-template-columns:1fr;gap:0.4rem;font-size:0.7rem">
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">1</div>
+      <div><span style="color:#10b981;font-weight:700">Temperature Breach Response</span> — <span style="color:#64748b">CHI-ATL-2025-089 dairy shipment breaches at 5.2°C. AnomalyResponder detects, queries SOPs, generates action plan, CustomerNotifier sends Whole Foods an email. Full agent chain in &lt;10s.</span></div>
+    </div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">2</div>
+      <div><span style="color:#10b981;font-weight:700">Route Optimisation Under Risk</span> — <span style="color:#64748b">TX-CHI-2025-001 seafood at 68% spoilage risk. RouteAdvisor queries historical route performance, recommends Via Distribution Hub, calculates $920 cost vs $850 risk, shows savings.</span></div>
+    </div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">3</div>
+      <div><span style="color:#10b981;font-weight:700">Shift Handoff Report</span> — <span style="color:#64748b">OpsSummarizer generates 24h Chicago hub report: 4 events, 2 incidents, 94.2% on-time, LLM executive summary with recommendations for next shift. Exportable PDF.</span></div>
+    </div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">4</div>
+      <div><span style="color:#10b981;font-weight:700">SOP Natural Language Query</span> — <span style="color:#64748b">User asks "What do I do if seafood exceeds 4°C for 30 minutes?" RAG retrieves from lineage-sops.txt, LLM answers with citations, step-by-step procedure, escalation path.</span></div>
+    </div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">5</div>
+      <div><span style="color:#10b981;font-weight:700">Live IoT Simulator</span> — <span style="color:#64748b">Dashboard auto-demo mode: temperature gauges drift in real time, GPS markers move, automatic breach fires every ~5 min triggering the full AnomalyResponder → CustomerNotifier pipeline live.</span></div>
+    </div>
+    <div style="background:#0a1f0f;border:1px solid #064e3b;border-radius:6px;padding:0.6rem;display:grid;grid-template-columns:24px 1fr">
+      <div style="color:#10b981;font-weight:700">6</div>
+      <div><span style="color:#10b981;font-weight:700">Locust Load Test</span> — <span style="color:#64748b">One-click scenario: 50 concurrent users hitting all 4 agent endpoints + RAG query. Results in Locust UI (localhost:9009) + Langfuse shows per-agent LLM costs under load.</span></div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:1rem;text-align:center;color:#475569;font-size:0.8rem">
+  Does the frontend structure and demo scenarios look right? Reply to move to the final section — CLAUDE.md, README, and file structure.
+</div>
