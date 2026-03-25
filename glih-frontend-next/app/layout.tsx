@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "./contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "GLIH OPS — Cold Chain Intelligence",
@@ -12,7 +13,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="h-full" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

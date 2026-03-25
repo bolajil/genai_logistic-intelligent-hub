@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Zap, Truck, Bell, BarChart3,
-  FolderOpen, Settings, Shield, ChevronRight
+  FolderOpen, Settings, Shield
 } from "lucide-react";
 
 const nav = [
@@ -103,37 +103,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Demo mode + user */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
-        <div style={{
-          background: "#052e16",
-          border: "1px solid #14532d",
-          borderRadius: 6,
-          padding: "6px 10px",
-          marginBottom: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}>
-          <span className="pulse-dot green" />
-          <span style={{ color: "#4ade80", fontSize: "0.65rem", fontWeight: 700 }}>DEMO MODE</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 30, height: 30,
-            borderRadius: "50%",
-            background: "var(--teal-dim)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "var(--teal)",
-            fontWeight: 700,
-            fontSize: "0.7rem",
-          }}>LB</div>
-          <div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-primary)" }}>Lanre Bolaji</div>
-            <div style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>ops-manager</div>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

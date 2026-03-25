@@ -1,6 +1,7 @@
 "use client";
-import { Bell, RefreshCw, Settings } from "lucide-react";
+import { Bell, Settings, LogOut, User } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/app/contexts/AuthContext";
 
 interface HeaderProps {
   title: string;
@@ -9,6 +10,8 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, live = false }: HeaderProps) {
+  const { user, logout } = useAuth();
+
   return (
     <header style={{
       display: "flex",
@@ -39,6 +42,26 @@ export default function Header({ title, subtitle, live = false }: HeaderProps) {
             <span style={{ color: "#4ade80", fontSize: "0.65rem", fontWeight: 700 }}>LIVE</span>
           </div>
         )}
+        
+        {/* Admin info */}
+        {user && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "var(--bg-card)", border: "1px solid var(--border)",
+            borderRadius: 6, padding: "6px 12px",
+          }}>
+            <User size={14} style={{ color: "var(--teal)" }} />
+            <div>
+              <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                {user.name}
+              </div>
+              <div style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
+                {user.role}
+              </div>
+            </div>
+          </div>
+        )}
+        
         <Link href="/alerts">
           <button style={{
             background: "var(--bg-card)", border: "1px solid var(--border)",
@@ -57,6 +80,21 @@ export default function Header({ title, subtitle, live = false }: HeaderProps) {
             <Settings size={14} />
           </button>
         </Link>
+        
+        {/* Logout button */}
+        {user && (
+          <button
+            onClick={logout}
+            style={{
+              background: "var(--bg-card)", border: "1px solid var(--border)",
+              borderRadius: 6, padding: "6px 8px", cursor: "pointer",
+              color: "var(--text-secondary)", display: "flex", alignItems: "center",
+            }}
+            title="Logout"
+          >
+            <LogOut size={14} />
+          </button>
+        )}
       </div>
     </header>
   );

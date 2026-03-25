@@ -5,12 +5,22 @@ import re
 import time
 import logging
 import requests
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from ..config import load_config, save_config
 from ..utils import sanitize_config
+from ..dispatchers import (
+    login as admin_login,
+    logout as admin_logout,
+    get_user_by_token,
+    get_all_dispatchers,
+    get_dispatcher_by_id,
+    create_dispatcher,
+    DispatcherCreate,
+    DispatcherLogin,
+)
 from ..providers import (
     make_embeddings_provider,
     make_vector_store,
@@ -36,6 +46,105 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Auth setup ────────────────────────────────────────────────────────────────
+from .auth_utils import (
+    create_access_token, create_refresh_token, hash_password, verify_password,
+    store_user, get_user_by_email, get_user_by_id,
+    store_refresh_token, get_refresh_token_owner, delete_refresh_token,
+    get_current_user, create_admin_user,
+)
+import uuid as _uuid
+from datetime import datetime as _dt
+from pydantic import EmailStr
+
+@app.on_event("startup")
+async def _startup():
+    create_admin_user()
+
+class _AuthRegisterReq(BaseModel):
+    name:     str
+    email:    str
+    password: str
+
+class _AuthLoginReq(BaseModel):
+    email:    str
+    password: str
+
+class _AuthRefreshReq(BaseModel):
+    refresh_token: str
+
+class _ChangePwdReq(BaseModel):
+    current_password: str
+    new_password:     str
+
+def _issue_tokens(user: dict) -> dict:
+    access  = create_access_token(user["id"], user["email"], user["name"])
+    refresh = create_refresh_token()
+    store_refresh_token(refresh, user["id"])
+    return {
+        "access_token":          access,
+        "refresh_token":         refresh,
+        "token_type":            "bearer",
+        "force_password_change": bool(user.get("force_password_change", False)),
+        "user": {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role"]},
+    }
+
+@app.post("/auth/register", status_code=201)
+def auth_register(body: _AuthRegisterReq):
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    if get_user_by_email(body.email):
+        raise HTTPException(409, "An account with this email already exists")
+    user = {
+        "id": str(_uuid.uuid4()), "name": body.name.strip(),
+        "email": body.email.lower(),
+        "hashed_password": hash_password(body.password),
+        "role": "user", "created_at": _dt.utcnow().isoformat(),
+    }
+    store_user(user)
+    return _issue_tokens(user)
+
+@app.post("/auth/login")
+def auth_login(body: _AuthLoginReq):
+    user = get_user_by_email(body.email)
+    dummy = "$2b$12$dummyhashtopreventtimingattacksXXXXXXXXXXXXXXXXXXXXXXXX"
+    hashed = user["hashed_password"] if user else dummy
+    if not verify_password(body.password, hashed) or not user:
+        raise HTTPException(401, "Incorrect email or password")
+    return _issue_tokens(user)
+
+@app.post("/auth/refresh")
+def auth_refresh(body: _AuthRefreshReq):
+    user_id = get_refresh_token_owner(body.refresh_token)
+    if not user_id:
+        raise HTTPException(401, "Invalid or expired refresh token")
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(401, "User no longer exists")
+    delete_refresh_token(body.refresh_token)
+    return _issue_tokens(user)
+
+@app.post("/auth/logout", status_code=204)
+def auth_logout(body: _AuthRefreshReq):
+    delete_refresh_token(body.refresh_token)
+
+@app.get("/auth/me")
+def auth_me(current_user: dict = Depends(get_current_user)):
+    return {"id": current_user["id"], "name": current_user["name"],
+            "email": current_user["email"], "role": current_user["role"]}
+
+@app.post("/auth/change-password")
+def auth_change_password(body: _ChangePwdReq, current_user: dict = Depends(get_current_user)):
+    if not verify_password(body.current_password, current_user["hashed_password"]):
+        raise HTTPException(400, "Current password is incorrect")
+    if body.current_password == body.new_password:
+        raise HTTPException(400, "New password must be different from current password")
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "New password must be at least 8 characters")
+    store_user({**current_user, "hashed_password": hash_password(body.new_password),
+                "force_password_change": False})
+    return {"message": "Password updated successfully"}
 
 # Initialize configuration and providers at import-time for simplicity.
 _cfg = load_config()
@@ -868,6 +977,8 @@ class NotifyRequest(BaseModel):
     notification_type: str
     severity: Optional[str] = "low"
     details: Optional[Dict[str, Any]] = {}
+    dispatcher_name: Optional[str] = "John Martinez"  # Default dispatcher
+    dispatcher_title: Optional[str] = "Cold Chain Operations Dispatcher"
 
 
 @app.post("/agents/notify")
@@ -875,12 +986,16 @@ def run_notify_agent(req: NotifyRequest):
     start = time.time()
     try:
         agent = CustomerNotifier(_cfg)
+        # Map notification_type to 'type' which the agent expects
         request_data = {
             "shipment_id": req.shipment_id,
             "customer_id": req.customer_id,
+            "type": req.notification_type,  # Agent expects 'type' not 'notification_type'
             "notification_type": req.notification_type,
             "severity": req.severity,
             "details": req.details or {},
+            "dispatcher_name": req.dispatcher_name,
+            "dispatcher_title": req.dispatcher_title,
         }
         result = agent.notify_customer(request_data, _make_llm_fn())
         duration_ms = int((time.time() - start) * 1000)
@@ -911,6 +1026,69 @@ def run_ops_summary_agent(req: OpsSummaryRequest):
     except Exception as e:
         logger.error(f"ops_summary_agent failed: {e}")
         raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+
+
+# ===========================================================================
+# Dispatcher Authentication
+# ===========================================================================
+
+@app.post("/auth/login")
+def login(req: DispatcherLogin):
+    """Login admin and return session token."""
+    result = admin_login(req.username, req.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    return result
+
+
+@app.post("/auth/logout")
+def logout(authorization: Optional[str] = Header(None)):
+    """Logout admin and invalidate session."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No authorization token")
+    
+    token = authorization.replace("Bearer ", "")
+    admin_logout(token)
+    return {"status": "logged_out"}
+
+
+@app.get("/auth/me")
+def get_current_user(authorization: Optional[str] = Header(None)):
+    """Get current logged-in admin info."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No authorization token")
+    
+    token = authorization.replace("Bearer ", "")
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    
+    return {"user": user}
+
+
+@app.get("/dispatchers/{dispatcher_id}")
+def get_dispatcher(dispatcher_id: str):
+    """Get a specific dispatcher by ID."""
+    dispatcher = get_dispatcher_by_id(dispatcher_id)
+    if not dispatcher:
+        raise HTTPException(status_code=404, detail="Dispatcher not found")
+    return {"dispatcher": dispatcher}
+
+
+@app.get("/dispatchers")
+def list_dispatchers():
+    """List all dispatchers."""
+    return {"dispatchers": get_all_dispatchers()}
+
+
+@app.post("/dispatchers")
+def add_dispatcher(req: DispatcherCreate):
+    """Create a new dispatcher account."""
+    try:
+        dispatcher = create_dispatcher(req)
+        return {"status": "created", "dispatcher": dispatcher}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ===========================================================================
