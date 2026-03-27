@@ -4,11 +4,13 @@ import uuid
 import re
 import time
 import logging
+import threading
 import requests
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
+from datetime import datetime as _datetime
 from ..config import load_config, save_config
 from ..utils import sanitize_config
 from ..dispatchers import (
@@ -36,12 +38,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Agent progress store ──────────────────────────────────────────────────────
+_progress_lock = threading.Lock()
+_progress_store: Dict[str, dict] = {}
+
+
+def _init_run(run_id: str) -> None:
+    with _progress_lock:
+        _progress_store[run_id] = {"events": [], "status": "running", "result": None, "error": None}
+
+
+def emit_progress(run_id: str, step: str, message: str, data: dict = None) -> None:
+    event = {"step": step, "message": message, "data": data or {}, "ts": _datetime.utcnow().isoformat()}
+    with _progress_lock:
+        if run_id in _progress_store:
+            _progress_store[run_id]["events"].append(event)
+    logger.info(f"[{run_id[:8]}] {step}: {message}")
+
+
+def _complete_run(run_id: str, result: dict = None, error: str = None) -> None:
+    with _progress_lock:
+        if run_id in _progress_store:
+            _progress_store[run_id]["status"] = "error" if error else "complete"
+            _progress_store[run_id]["result"] = result
+            _progress_store[run_id]["error"] = error
+
+
 app = FastAPI(title="GLIH Backend", version="0.1.0")
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://localhost:3000", "http://localhost:9000"],
+    allow_origins=["http://localhost:8501", "http://localhost:3000", "http://localhost:3001", "http://localhost:9000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -891,19 +919,39 @@ from glih_agents.customer_notifier import CustomerNotifier
 from glih_agents.ops_summarizer import OpsSummarizer
 
 
-def _make_vector_search_fn():
-    """Return a closure that searches the vector store."""
+def _make_vector_search_fn(run_id: str = None):
+    """Return a closure that searches the vector store, emitting progress events."""
     def _search(query: str, collection: str = "lineage-sops", k: int = 4) -> List[Dict[str, Any]]:
+        if run_id:
+            emit_progress(run_id, "retrieval", f"Searching '{collection}' → \"{query[:60]}\"")
         emb = _emb.embed([query])[0]
-        return _vs.search_in(collection, emb, k=k)
+        results = _vs.search_in(collection, emb, k=k)
+        if run_id:
+            emit_progress(run_id, "retrieval_done", f"Retrieved {len(results)} document chunks from {collection}", {"count": len(results), "collection": collection})
+        return results
     return _search
 
 
-def _make_llm_fn():
-    """Return a closure that calls the LLM."""
+def _make_llm_fn(run_id: str = None):
+    """Return a closure that calls the LLM, emitting progress events."""
     def _generate(prompt: str) -> str:
-        return _llm.generate(prompt)
+        if run_id:
+            emit_progress(run_id, "llm_call", f"Calling {_llm.provider}/{_llm.model} ({len(prompt)} char prompt)…")
+        result = _llm.generate(prompt)
+        if run_id:
+            emit_progress(run_id, "llm_done", f"LLM response received ({len(result)} chars)", {"chars": len(result)})
+        return result
     return _generate
+
+
+@app.get("/agents/progress/{run_id}")
+def get_agent_progress(run_id: str):
+    """Poll this endpoint to get live progress events for an agent run."""
+    with _progress_lock:
+        data = _progress_store.get(run_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="run_id not found")
+    return data
 
 
 class AnomalyRequest(BaseModel):
@@ -916,10 +964,11 @@ class AnomalyRequest(BaseModel):
     breach_duration_min: Optional[int] = 0
 
 
-@app.post("/agents/anomaly")
-def run_anomaly_agent(req: AnomalyRequest):
+def _run_anomaly_background(run_id: str, req: AnomalyRequest):
     start = time.time()
     try:
+        emit_progress(run_id, "init", f"AnomalyResponder started for shipment {req.shipment_id}")
+        emit_progress(run_id, "analyze", f"Analyzing temp {req.temperature_c}°C for {req.product_type} at {req.location}")
         agent = AnomalyResponder(_cfg)
         event = {
             "shipment_id": req.shipment_id,
@@ -928,14 +977,23 @@ def run_anomaly_agent(req: AnomalyRequest):
             "location": req.location,
             "duration_minutes": req.breach_duration_min,
         }
-        result = agent.respond_to_anomaly(event, _make_vector_search_fn(), _make_llm_fn())
+        result = agent.respond_to_anomaly(event, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
-        logger.info(f"anomaly_agent completed in {duration_ms}ms for {req.shipment_id}")
-        return {"run_id": str(uuid.uuid4()), "agent_name": "AnomalyResponder", "status": "success",
-                "result": result, "duration_ms": duration_ms}
+        emit_progress(run_id, "complete", f"AnomalyResponder finished in {duration_ms}ms", {"duration_ms": duration_ms})
+        _complete_run(run_id, result={"run_id": run_id, "agent_name": "AnomalyResponder", "status": "success", "result": result, "duration_ms": duration_ms})
     except Exception as e:
         logger.error(f"anomaly_agent failed: {e}")
-        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+        emit_progress(run_id, "error", str(e))
+        _complete_run(run_id, error=str(e))
+
+
+@app.post("/agents/anomaly")
+def run_anomaly_agent(req: AnomalyRequest, background_tasks: BackgroundTasks):
+    run_id = str(uuid.uuid4())
+    _init_run(run_id)
+    emit_progress(run_id, "queued", f"AnomalyResponder queued for {req.shipment_id}")
+    background_tasks.add_task(_run_anomaly_background, run_id, req)
+    return {"run_id": run_id, "status": "running", "agent_name": "AnomalyResponder"}
 
 
 class RouteRequest(BaseModel):
@@ -947,10 +1005,11 @@ class RouteRequest(BaseModel):
     constraints: Optional[Dict[str, Any]] = {}
 
 
-@app.post("/agents/route")
-def run_route_agent(req: RouteRequest):
+def _run_route_background(run_id: str, req: RouteRequest):
     start = time.time()
     try:
+        emit_progress(run_id, "init", f"RouteAdvisor started for {req.shipment_id}")
+        emit_progress(run_id, "analyze", f"Evaluating route: {req.origin} → {req.destination} ({req.product_type})")
         agent = RouteAdvisor(_cfg)
         from datetime import datetime as _dt
         request_data = {
@@ -961,14 +1020,23 @@ def run_route_agent(req: RouteRequest):
             "start_time": req.start_time or _dt.now().isoformat(),
             "constraints": req.constraints or {},
         }
-        result = agent.advise_route(request_data, _make_vector_search_fn(), _make_llm_fn())
+        result = agent.advise_route(request_data, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
-        logger.info(f"route_agent completed in {duration_ms}ms")
-        return {"run_id": str(uuid.uuid4()), "agent_name": "RouteAdvisor", "status": "success",
-                "result": result, "duration_ms": duration_ms}
+        emit_progress(run_id, "complete", f"RouteAdvisor finished in {duration_ms}ms", {"duration_ms": duration_ms})
+        _complete_run(run_id, result={"run_id": run_id, "agent_name": "RouteAdvisor", "status": "success", "result": result, "duration_ms": duration_ms})
     except Exception as e:
         logger.error(f"route_agent failed: {e}")
-        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+        emit_progress(run_id, "error", str(e))
+        _complete_run(run_id, error=str(e))
+
+
+@app.post("/agents/route")
+def run_route_agent(req: RouteRequest, background_tasks: BackgroundTasks):
+    run_id = str(uuid.uuid4())
+    _init_run(run_id)
+    emit_progress(run_id, "queued", f"RouteAdvisor queued for {req.shipment_id}")
+    background_tasks.add_task(_run_route_background, run_id, req)
+    return {"run_id": run_id, "status": "running", "agent_name": "RouteAdvisor"}
 
 
 class NotifyRequest(BaseModel):
@@ -981,30 +1049,39 @@ class NotifyRequest(BaseModel):
     dispatcher_title: Optional[str] = "Cold Chain Operations Dispatcher"
 
 
-@app.post("/agents/notify")
-def run_notify_agent(req: NotifyRequest):
+def _run_notify_background(run_id: str, req: NotifyRequest):
     start = time.time()
     try:
+        emit_progress(run_id, "init", f"CustomerNotifier started for {req.customer_id}")
+        emit_progress(run_id, "compose", f"Composing {req.notification_type} notification (severity: {req.severity})")
         agent = CustomerNotifier(_cfg)
-        # Map notification_type to 'type' which the agent expects
         request_data = {
             "shipment_id": req.shipment_id,
             "customer_id": req.customer_id,
-            "type": req.notification_type,  # Agent expects 'type' not 'notification_type'
+            "type": req.notification_type,
             "notification_type": req.notification_type,
             "severity": req.severity,
             "details": req.details or {},
             "dispatcher_name": req.dispatcher_name,
             "dispatcher_title": req.dispatcher_title,
         }
-        result = agent.notify_customer(request_data, _make_llm_fn())
+        result = agent.notify_customer(request_data, _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
-        logger.info(f"notify_agent completed in {duration_ms}ms")
-        return {"run_id": str(uuid.uuid4()), "agent_name": "CustomerNotifier", "status": "success",
-                "result": result, "duration_ms": duration_ms}
+        emit_progress(run_id, "complete", f"CustomerNotifier finished in {duration_ms}ms", {"duration_ms": duration_ms})
+        _complete_run(run_id, result={"run_id": run_id, "agent_name": "CustomerNotifier", "status": "success", "result": result, "duration_ms": duration_ms})
     except Exception as e:
         logger.error(f"notify_agent failed: {e}")
-        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+        emit_progress(run_id, "error", str(e))
+        _complete_run(run_id, error=str(e))
+
+
+@app.post("/agents/notify")
+def run_notify_agent(req: NotifyRequest, background_tasks: BackgroundTasks):
+    run_id = str(uuid.uuid4())
+    _init_run(run_id)
+    emit_progress(run_id, "queued", f"CustomerNotifier queued for {req.customer_id}")
+    background_tasks.add_task(_run_notify_background, run_id, req)
+    return {"run_id": run_id, "status": "running", "agent_name": "CustomerNotifier"}
 
 
 class OpsSummaryRequest(BaseModel):
@@ -1012,20 +1089,29 @@ class OpsSummaryRequest(BaseModel):
     facility: Optional[str] = "all"
 
 
-@app.post("/agents/ops-summary")
-def run_ops_summary_agent(req: OpsSummaryRequest):
+def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest):
     start = time.time()
     try:
+        emit_progress(run_id, "init", f"OpsSummarizer started — window: {req.time_window}, facility: {req.facility}")
+        emit_progress(run_id, "aggregate", f"Aggregating operational events for the last {req.time_window}")
         agent = OpsSummarizer(_cfg)
-        request_data = {"time_window": req.time_window, "facility": req.facility}
-        result = agent.summarize_ops(req.time_window, _make_vector_search_fn(), _make_llm_fn())
+        result = agent.summarize_ops(req.time_window, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
-        logger.info(f"ops_summary_agent completed in {duration_ms}ms")
-        return {"run_id": str(uuid.uuid4()), "agent_name": "OpsSummarizer", "status": "success",
-                "result": result, "duration_ms": duration_ms}
+        emit_progress(run_id, "complete", f"OpsSummarizer finished in {duration_ms}ms", {"duration_ms": duration_ms})
+        _complete_run(run_id, result={"run_id": run_id, "agent_name": "OpsSummarizer", "status": "success", "result": result, "duration_ms": duration_ms})
     except Exception as e:
         logger.error(f"ops_summary_agent failed: {e}")
-        raise HTTPException(status_code=500, detail=f"agent_failed: {e}")
+        emit_progress(run_id, "error", str(e))
+        _complete_run(run_id, error=str(e))
+
+
+@app.post("/agents/ops-summary")
+def run_ops_summary_agent(req: OpsSummaryRequest, background_tasks: BackgroundTasks):
+    run_id = str(uuid.uuid4())
+    _init_run(run_id)
+    emit_progress(run_id, "queued", f"OpsSummarizer queued — {req.time_window} window")
+    background_tasks.add_task(_run_ops_summary_background, run_id, req)
+    return {"run_id": run_id, "status": "running", "agent_name": "OpsSummarizer"}
 
 
 # ===========================================================================

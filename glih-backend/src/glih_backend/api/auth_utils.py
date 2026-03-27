@@ -65,27 +65,54 @@ def decode_access_token(token: str) -> dict:
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
-# ── In-memory user store (Redis-ready) ───────────────────────────────────────
+# ── File-backed user store (survives backend restarts) ───────────────────────
 
-_mem_users_by_email: dict[str, dict] = {}
-_mem_users_by_id:    dict[str, dict] = {}
-_mem_refresh:        dict[str, str]  = {}
+import json as _json
+import pathlib as _pathlib
+
+_DB_PATH = _pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" / "glih_users.json"
+_mem_refresh: dict[str, str] = {}
+
+
+def _load_db() -> dict:
+    try:
+        if _DB_PATH.exists():
+            return _json.loads(_DB_PATH.read_text())
+    except Exception:
+        pass
+    return {"by_email": {}, "by_id": {}}
+
+
+def _save_db(db: dict) -> None:
+    try:
+        _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _DB_PATH.write_text(_json.dumps(db, indent=2))
+    except Exception as e:
+        logger.warning(f"Could not save user DB: {e}")
+
 
 def store_user(user: dict) -> None:
-    _mem_users_by_email[user["email"].lower()] = user
-    _mem_users_by_id[user["id"]] = user
+    db = _load_db()
+    db["by_email"][user["email"].lower()] = user
+    db["by_id"][user["id"]] = user
+    _save_db(db)
+
 
 def get_user_by_email(email: str) -> Optional[dict]:
-    return _mem_users_by_email.get(email.lower())
+    return _load_db()["by_email"].get(email.lower())
+
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
-    return _mem_users_by_id.get(user_id)
+    return _load_db()["by_id"].get(user_id)
+
 
 def store_refresh_token(token: str, user_id: str) -> None:
     _mem_refresh[token] = user_id
 
+
 def get_refresh_token_owner(token: str) -> Optional[str]:
     return _mem_refresh.get(token)
+
 
 def delete_refresh_token(token: str) -> None:
     _mem_refresh.pop(token, None)

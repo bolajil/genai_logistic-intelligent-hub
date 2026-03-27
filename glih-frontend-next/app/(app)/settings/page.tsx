@@ -4,7 +4,18 @@ import Header from "@/components/Header";
 
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9001";
 
-type Tab = "connectors" | "api-keys" | "llm" | "advanced";
+type Tab = "connectors" | "api-keys" | "dispatchers" | "llm" | "advanced";
+
+interface Dispatcher {
+  id: string;
+  username: string;
+  name: string;
+  title: string;
+  email: string;
+  facility: string;
+  shift: string;
+  active: boolean;
+}
 
 interface MCPConnector {
   id: string;
@@ -61,11 +72,52 @@ export default function SettingsPage() {
   const [llm, setLlm] = useState("openai/gpt-4o");
   const [saved, setSaved] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  
+  // Dispatcher management state
+  const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
+  const [showAddDispatcher, setShowAddDispatcher] = useState(false);
+  const [newDispatcher, setNewDispatcher] = useState({
+    username: "", name: "", title: "Operations Dispatcher", email: "", facility: "Chicago", shift: "Day"
+  });
+  const [addingDispatcher, setAddingDispatcher] = useState(false);
 
-  // Fetch MCP settings on mount
+  // Fetch MCP settings and dispatchers on mount
   useEffect(() => {
     fetchMCPSettings();
+    fetchDispatchers();
   }, []);
+
+  async function fetchDispatchers() {
+    try {
+      const res = await fetch(`${BASE}/dispatchers`);
+      if (res.ok) {
+        const data = await res.json();
+        setDispatchers(data.dispatchers || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch dispatchers:", e);
+    }
+  }
+
+  async function addDispatcher() {
+    setAddingDispatcher(true);
+    try {
+      const res = await fetch(`${BASE}/dispatchers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newDispatcher, password: "lineage123" }),
+      });
+      if (res.ok) {
+        await fetchDispatchers();
+        setNewDispatcher({ username: "", name: "", title: "Operations Dispatcher", email: "", facility: "Chicago", shift: "Day" });
+        setShowAddDispatcher(false);
+      }
+    } catch (e) {
+      console.error("Failed to add dispatcher:", e);
+    } finally {
+      setAddingDispatcher(false);
+    }
+  }
 
   async function fetchMCPSettings() {
     try {
@@ -144,6 +196,7 @@ export default function SettingsPage() {
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: "connectors", label: "Connection Mode", icon: "🔌" },
     { id: "api-keys", label: "API Keys & IoT", icon: "🔑" },
+    { id: "dispatchers", label: "Dispatchers", icon: "👤" },
     { id: "llm", label: "LLM Provider", icon: "🤖" },
     { id: "advanced", label: "Advanced", icon: "⚙️" },
   ];
@@ -338,6 +391,161 @@ export default function SettingsPage() {
                     <p style={{ marginBottom: 8 }}><b>OpenWeatherMap:</b> Register at <a href="https://openweathermap.org/api" target="_blank" style={{ color: "var(--teal)" }}>openweathermap.org/api</a> (free tier: 1000 calls/day).</p>
                     <p style={{ marginBottom: 8 }}><b>IoT Sensors:</b> Configure your MQTT broker (e.g., Mosquitto) or HTTP API gateway for temperature/door sensors.</p>
                     <p><b>Traffic:</b> Get API key from Google Maps Platform, HERE Developer, or Mapbox.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Dispatchers */}
+            {tab === "dispatchers" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div className="card" style={{ padding: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>Dispatcher Accounts</div>
+                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                        Manage dispatcher accounts for sending customer notifications
+                      </div>
+                    </div>
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => setShowAddDispatcher(!showAddDispatcher)}
+                      style={{ fontSize: "0.75rem", padding: "8px 16px" }}
+                    >
+                      {showAddDispatcher ? "Cancel" : "+ Add Dispatcher"}
+                    </button>
+                  </div>
+
+                  {/* Add Dispatcher Form */}
+                  {showAddDispatcher && (
+                    <div style={{ marginBottom: 20, padding: 16, background: "var(--bg-secondary)", borderRadius: 8, border: "1px solid var(--teal)" }}>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: 12, color: "var(--teal)" }}>New Dispatcher</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Username</label>
+                          <input
+                            type="text"
+                            value={newDispatcher.username}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, username: e.target.value }))}
+                            placeholder="e.g. jsmith"
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Full Name</label>
+                          <input
+                            type="text"
+                            value={newDispatcher.name}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, name: e.target.value }))}
+                            placeholder="e.g. John Smith"
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Title</label>
+                          <input
+                            type="text"
+                            value={newDispatcher.title}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, title: e.target.value }))}
+                            placeholder="e.g. Operations Dispatcher"
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Email</label>
+                          <input
+                            type="email"
+                            value={newDispatcher.email}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, email: e.target.value }))}
+                            placeholder="e.g. jsmith@lineagelogistics.com"
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Facility</label>
+                          <select
+                            value={newDispatcher.facility}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, facility: e.target.value }))}
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          >
+                            <option value="Chicago">Chicago</option>
+                            <option value="Atlanta">Atlanta</option>
+                            <option value="Dallas">Dallas</option>
+                            <option value="Los Angeles">Los Angeles</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Shift</label>
+                          <select
+                            value={newDispatcher.shift}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, shift: e.target.value }))}
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          >
+                            <option value="Day">Day</option>
+                            <option value="Night">Night</option>
+                            <option value="Swing">Swing</option>
+                          </select>
+                        </div>
+                      </div>
+                      <button
+                        onClick={addDispatcher}
+                        disabled={addingDispatcher || !newDispatcher.username || !newDispatcher.name || !newDispatcher.email}
+                        className="btn-primary"
+                        style={{ marginTop: 16, fontSize: "0.75rem" }}
+                      >
+                        {addingDispatcher ? "Adding..." : "Add Dispatcher"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Dispatcher List */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {dispatchers.map(d => (
+                      <div key={d.id} style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "14px 16px", background: "var(--bg-secondary)", borderRadius: 8,
+                        border: `1px solid ${d.active ? "var(--border)" : "var(--red)"}`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{
+                            width: 40, height: 40, borderRadius: "50%",
+                            background: "var(--teal)" + "20", color: "var(--teal)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontWeight: 700, fontSize: "0.9rem",
+                          }}>
+                            {d.name.split(" ").map(n => n[0]).join("")}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                              {d.name}
+                            </div>
+                            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                              {d.title} • {d.facility} • {d.shift} Shift
+                            </div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--teal)", fontFamily: "monospace" }}>
+                              {d.email}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{
+                            fontSize: "0.68rem", fontWeight: 600, padding: "4px 10px", borderRadius: 4,
+                            background: d.active ? "var(--green)" + "20" : "var(--red)" + "20",
+                            color: d.active ? "var(--green)" : "var(--red)",
+                          }}>
+                            {d.active ? "Active" : "Inactive"}
+                          </span>
+                          <span style={{ fontSize: "0.65rem", color: "var(--text-dim)", fontFamily: "monospace" }}>
+                            {d.id}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {dispatchers.length === 0 && (
+                      <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        No dispatchers found. Add one to get started.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

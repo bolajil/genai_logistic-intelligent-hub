@@ -13,6 +13,9 @@ class CustomerNotifier:
         self.default_channel = config.get('customer_notification_channel', 'email')
         self.notification_tone = config.get('customer_notification_tone', 'professional')
         self.proactive_updates = config.get('customer_proactive_updates', True)
+        # Dispatcher info - can be overridden per notification
+        self.dispatcher_name = config.get('dispatcher_name', 'Operations Team')
+        self.dispatcher_title = config.get('dispatcher_title', 'Cold Chain Operations')
     
     def get_customer_profile(self, customer_id: str) -> Dict[str, Any]:
         """Retrieve customer preferences and profile."""
@@ -92,24 +95,93 @@ class CustomerNotifier:
     
     def generate_message(self, event: Dict[str, Any], customer: Dict[str, Any], template: str) -> str:
         """Generate personalized message based on event and customer preferences."""
-        # Format template with event details
-        message = template.format(**event)
+        notification_type = event.get('type', event.get('notification_type', 'update'))
+        shipment_id = event.get('shipment_id', 'N/A')
+        severity = event.get('severity', 'low')
+        details = event.get('details', {})
         
+        # Build comprehensive message based on notification type
+        if notification_type == 'temperature_breach':
+            message = f"""TEMPERATURE ALERT - Shipment {shipment_id}
+
+We are writing to inform you of a temperature monitoring event for your shipment.
+
+📦 Shipment ID: {shipment_id}
+🌡️ Alert Type: Temperature Breach
+⚠️ Severity: {severity.upper()}
+
+Current Status:
+• Our monitoring systems detected a temperature variance
+• Our cold chain team has been immediately notified
+• Corrective actions are being implemented
+
+Actions Taken:
+• Shipment has been flagged for priority inspection
+• Temperature logs have been preserved for compliance
+• Quality assurance team is assessing product integrity
+
+Next Steps:
+• You will receive an update within 2 hours
+• If product inspection reveals any concerns, we will contact you immediately
+• A detailed incident report will be provided upon delivery"""
+
+        elif notification_type == 'delay':
+            message = f"""SHIPMENT DELAY NOTIFICATION - {shipment_id}
+
+We regret to inform you that your shipment is experiencing a delay.
+
+📦 Shipment ID: {shipment_id}
+⏱️ Alert Type: Delivery Delay
+⚠️ Severity: {severity.upper()}
+
+Delay Details:
+• Our logistics team is actively working to minimize the impact
+• Updated ETA will be provided as soon as available
+
+Actions Being Taken:
+• Route optimization in progress
+• Alternative transportation options being evaluated
+• Priority handling upon arrival at destination
+
+We apologize for any inconvenience and appreciate your patience."""
+
+        else:
+            # Generic notification with full details
+            message = f"""SHIPMENT UPDATE - {shipment_id}
+
+📦 Shipment ID: {shipment_id}
+📋 Update Type: {notification_type.replace('_', ' ').title()}
+⚠️ Priority: {severity.upper()}
+
+Our team is monitoring your shipment and will keep you informed of any developments.
+
+For real-time tracking, please visit our customer portal or contact your account representative."""
+
         # Adjust tone based on customer preference
         tone = customer.get('preferred_tone', 'professional')
         
         if tone == 'concise':
             # Shorten message for SMS
-            lines = message.split('.')
-            message = '. '.join(lines[:2]) + '.'
+            lines = message.split('\n')
+            message = '\n'.join([l for l in lines[:8] if l.strip()])
         elif tone == 'technical':
             # Add technical details for API consumers
-            message += f"\n\nTechnical Details: Event ID: {event.get('event_id')}, Timestamp: {event.get('timestamp')}"
+            message += f"\n\n--- Technical Details ---\nEvent ID: {event.get('event_id', 'N/A')}\nTimestamp: {event.get('timestamp', datetime.now().isoformat())}\nSeverity Code: {severity}"
         
         # Add greeting and signature for email
         if customer.get('channel') == 'email':
-            greeting = f"Dear {customer.get('contact_name', 'Customer')},\n\n"
-            signature = "\n\nBest regards,\nLineage Logistics Operations Team\n\nFor questions, contact: support@lineagelogistics.com"
+            greeting = f"Dear {customer.get('contact_name', 'Valued Customer')},\n\n"
+            signature = f"""\n
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Best regards,
+Lineage Logistics Operations Team
+
+📧 support@lineagelogistics.com
+📞 1-800-LINEAGE
+🌐 www.lineagelogistics.com/tracking
+
+This is an automated notification from Lineage Logistics Cold Chain Management System.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"""
             message = greeting + message + signature
         
         return message
@@ -181,8 +253,8 @@ class CustomerNotifier:
         """Main entry point: generate and send customer notification."""
         logger.info(f"Processing notification for shipment {event.get('shipment_id')}")
         
-        # 1. Determine notification type
-        notification_type = event.get('type')
+        # 1. Determine notification type (check both 'type' and 'notification_type' fields)
+        notification_type = event.get('type') or event.get('notification_type')
         if not notification_type:
             return {
                 'status': 'error',
@@ -208,10 +280,14 @@ class CustomerNotifier:
         template = self.get_notification_template(notification_type)
         
         # 5. Generate personalized message
+        # Get dispatcher info from event (logged-in user) or use defaults
+        dispatcher_name = event.get('dispatcher_name') or self.dispatcher_name
+        dispatcher_title = event.get('dispatcher_title') or self.dispatcher_title
+        
         if llm_generate_fn and notification_type in ['delay', 'issue', 'temperature_breach']:
             # Use LLM for more nuanced messaging on sensitive topics
             try:
-                prompt = f"""Generate a professional customer notification for Lineage Logistics:
+                prompt = f"""Generate a professional customer notification email for Lineage Logistics:
                 
                 Customer: {customer.get('name')}
                 Contact: {customer.get('contact_name')}
@@ -219,17 +295,21 @@ class CustomerNotifier:
                 
                 Shipment ID: {event.get('shipment_id')}
                 Notification Type: {notification_type}
+                Severity: {event.get('severity', 'medium')}
                 Details: {event.get('details', {})}
                 
-                Template: {template}
+                SENDER (Dispatcher): {dispatcher_name}, {dispatcher_title}
                 
-                Generate a clear, professional notification that:
-                1. Informs the customer of the situation
-                2. Explains what action we're taking
-                3. Provides next steps or timeline
-                4. Maintains customer confidence
+                Generate a clear, professional email notification that:
+                1. Has a clear subject line
+                2. Addresses the customer contact by name
+                3. Informs the customer of the situation clearly
+                4. Explains what action we're taking
+                5. Provides next steps or timeline (e.g., update within 1-2 hours)
+                6. Maintains customer confidence
+                7. Signs off with the dispatcher's name and title: "{dispatcher_name}, {dispatcher_title}"
                 
-                Keep it concise (2-3 sentences for {customer.get('channel')}).
+                Format as a proper email with Subject line, greeting, body, and signature.
                 """
                 message = llm_generate_fn(prompt)
             except Exception as e:
