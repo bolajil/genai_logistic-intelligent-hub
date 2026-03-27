@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -19,10 +20,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-REFRESH_TOKEN_EXPIRE_DAYS   = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_EXPIRE_MINUTES", "60"))
+REFRESH_TOKEN_EXPIRE_DAYS   = int(os.getenv("JWT_REFRESH_EXPIRE_DAYS", "7"))
 ALGORITHM                   = "HS256"
-JWT_SECRET_KEY               = "glih-jwt-secret-change-in-production-2025"
+JWT_SECRET_KEY               = os.getenv("JWT_SECRET", "glih-jwt-secret-change-in-production-2025")
 
 _bearer = HTTPBearer(auto_error=False)
 

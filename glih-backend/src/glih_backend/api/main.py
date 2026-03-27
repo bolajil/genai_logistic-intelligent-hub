@@ -6,11 +6,28 @@ import time
 import logging
 import threading
 import requests
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 from datetime import datetime as _datetime
+
+# ── Sentry (optional — only activates when SENTRY_DSN is set) ────────────────
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        environment=os.getenv("GLIH_ENV", "production"),
+        traces_sample_rate=0.2,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+    )
 from ..config import load_config, save_config
 from ..utils import sanitize_config
 from ..dispatchers import (
@@ -64,7 +81,15 @@ def _complete_run(run_id: str, result: dict = None, error: str = None) -> None:
             _progress_store[run_id]["error"] = error
 
 
+# ── Rate limiter ──────────────────────────────────────────────────────────────
+_RATE_LIMIT_QUERY   = os.getenv("RATE_LIMIT_QUERY",  "30/minute")
+_RATE_LIMIT_AGENTS  = os.getenv("RATE_LIMIT_AGENTS", "20/minute")
+_RATE_LIMIT_INGEST  = os.getenv("RATE_LIMIT_INGEST", "10/minute")
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
 app = FastAPI(title="GLIH Backend", version="0.1.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
 app.add_middleware(
@@ -768,7 +793,8 @@ def ingest_url(req: URLIngestRequest):
 
 
 @app.get("/query")
-def query(q: str = "hello", k: int = 4, collection: Optional[str] = None, max_distance: Optional[float] = None, style: str = "concise"):
+@limiter.limit(_RATE_LIMIT_QUERY)
+def query(request: Request, q: str = "hello", k: int = 4, collection: Optional[str] = None, max_distance: Optional[float] = None, style: str = "concise"):
     logger.info(f"Query received: q='{q[:50]}...', collection={collection}, k={k}, max_distance={max_distance}, style={style}")
     try:
         coll_name = collection or _vs.collection
@@ -988,7 +1014,8 @@ def _run_anomaly_background(run_id: str, req: AnomalyRequest):
 
 
 @app.post("/agents/anomaly")
-def run_anomaly_agent(req: AnomalyRequest, background_tasks: BackgroundTasks):
+@limiter.limit(_RATE_LIMIT_AGENTS)
+def run_anomaly_agent(request: Request, req: AnomalyRequest, background_tasks: BackgroundTasks):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"AnomalyResponder queued for {req.shipment_id}")
@@ -1031,7 +1058,8 @@ def _run_route_background(run_id: str, req: RouteRequest):
 
 
 @app.post("/agents/route")
-def run_route_agent(req: RouteRequest, background_tasks: BackgroundTasks):
+@limiter.limit(_RATE_LIMIT_AGENTS)
+def run_route_agent(request: Request, req: RouteRequest, background_tasks: BackgroundTasks):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"RouteAdvisor queued for {req.shipment_id}")
@@ -1076,7 +1104,8 @@ def _run_notify_background(run_id: str, req: NotifyRequest):
 
 
 @app.post("/agents/notify")
-def run_notify_agent(req: NotifyRequest, background_tasks: BackgroundTasks):
+@limiter.limit(_RATE_LIMIT_AGENTS)
+def run_notify_agent(request: Request, req: NotifyRequest, background_tasks: BackgroundTasks):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"CustomerNotifier queued for {req.customer_id}")
@@ -1106,7 +1135,8 @@ def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest):
 
 
 @app.post("/agents/ops-summary")
-def run_ops_summary_agent(req: OpsSummaryRequest, background_tasks: BackgroundTasks):
+@limiter.limit(_RATE_LIMIT_AGENTS)
+def run_ops_summary_agent(request: Request, req: OpsSummaryRequest, background_tasks: BackgroundTasks):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"OpsSummarizer queued — {req.time_window} window")
