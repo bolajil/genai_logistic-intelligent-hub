@@ -3,7 +3,8 @@ GLIH Platform — JWT Auth Utilities
 ====================================
 Access token  : 15-min HS256 JWT
 Refresh token : 48-byte random token (in-memory store, Redis if available)
-Admin seed    : admin@glih.ops / glih-admin-2025  (force_password_change=True)
+Admin seed    : admin@glih.ops / ${GLIH_ADMIN_PASSWORD}  (force_password_change=True on first run)
+To change password permanently: update GLIH_ADMIN_PASSWORD in .env, delete data/glih_users.json, restart.
 """
 from __future__ import annotations
 
@@ -137,11 +138,12 @@ def create_admin_user() -> None:
     email = "admin@glih.ops"
     if get_user_by_email(email):
         return
+    seed_password = os.getenv("GLIH_ADMIN_PASSWORD", "glih-admin-2025")
     admin = {
         "id":                    str(uuid.uuid4()),
         "name":                  "GLIH Admin",
         "email":                 email,
-        "hashed_password":       hash_password("glih-admin-2025"),
+        "hashed_password":       hash_password(seed_password),
         "role":                  "admin",
         "created_at":            datetime.utcnow().isoformat(),
         "force_password_change": True,
