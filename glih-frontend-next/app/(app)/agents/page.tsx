@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const BASE = "http://localhost:9001";
 
@@ -344,6 +345,7 @@ function renderResult(result: any) {
 }
 
 export default function AgentsPage() {
+  const { can } = usePermissions();
   const [selected, setSelected] = useState("anomaly");
   const [payload, setPayload] = useState(JSON.stringify(PRESETS["anomaly"][0].payload, null, 2));
   const [running, setRunning] = useState(false);
@@ -521,8 +523,9 @@ export default function AgentsPage() {
             )}
             
             <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "center" }}>
-              <button className="btn-primary" onClick={runAgent} disabled={running}
-                style={{ background: agent.color, minWidth: 160 }}>
+              <button className="btn-primary" onClick={runAgent} disabled={running || !can("agents:run")}
+                style={{ background: agent.color, minWidth: 160, opacity: can("agents:run") ? 1 : 0.45, cursor: can("agents:run") ? "pointer" : "not-allowed" }}
+                title={can("agents:run") ? undefined : "Requires analyst role or higher"}>
                 {running ? "⚡ Running..." : `⚡ Run ${agent.name}`}
               </button>
               <button className="btn-ghost" onClick={() => { setResult(null); setError(null); setEvents([]); }}>Clear</button>

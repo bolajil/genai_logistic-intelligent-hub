@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { getHealthDetailed } from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const USERS = [
   { id: 1, name: "Lanre Bolaji",  email: "lanre@lineage.com",    role: "ops-manager", last: "Now" },
@@ -25,7 +26,25 @@ const roleColor: Record<string, string> = {
 };
 
 export default function AdminPage() {
+  const { can, role } = usePermissions();
   const [tab, setTab] = useState<"users" | "audit" | "health">("users");
+
+  if (!can("admin:users")) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Header title="Admin" subtitle="System administration" />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔒</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Access Restricted</div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+              Admin panel requires <strong>admin</strong> role. Your current role is <strong>{role}</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const [health, setHealth] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9001";
 
@@ -45,6 +46,7 @@ const FACILITIES = [
 ];
 
 export default function FleetPage() {
+  const { can } = usePermissions();
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [stats, setStats] = useState<FleetStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -257,15 +259,21 @@ export default function FleetPage() {
 
         {/* Action Bar */}
         <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            + Add Truck
-          </button>
-          <button className="btn-ghost" onClick={() => setShowBulkImport(true)}>
-            📥 Bulk Import (CSV)
-          </button>
-          <button className="btn-ghost" onClick={syncGPSTrace} disabled={syncing}>
-            {syncing ? "Syncing..." : "🔄 Sync GPS-Trace"}
-          </button>
+          {can("fleet:manage") && (
+            <button className="btn-primary" onClick={() => setShowForm(true)}>
+              + Add Truck
+            </button>
+          )}
+          {can("fleet:manage") && (
+            <button className="btn-ghost" onClick={() => setShowBulkImport(true)}>
+              📥 Bulk Import (CSV)
+            </button>
+          )}
+          {can("fleet:manage") && (
+            <button className="btn-ghost" onClick={syncGPSTrace} disabled={syncing}>
+              {syncing ? "Syncing..." : "🔄 Sync GPS-Trace"}
+            </button>
+          )}
           <div style={{ flex: 1 }} />
           <input
             type="text"

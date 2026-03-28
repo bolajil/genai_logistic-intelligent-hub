@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9001";
 
@@ -62,7 +63,25 @@ const DEFAULT_CONNECTORS: MCPConnector[] = [
 ];
 
 export default function SettingsPage() {
+  const { can, role } = usePermissions();
   const [tab, setTab] = useState<Tab>("connectors");
+
+  if (!can("settings:view")) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        <Header title="Settings" subtitle="System configuration" />
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔒</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Access Restricted</div>
+            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+              Settings require <strong>admin</strong> role. Your current role is <strong>{role}</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const [connectors, setConnectors] = useState<MCPConnector[]>(DEFAULT_CONNECTORS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);

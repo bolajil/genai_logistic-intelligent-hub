@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import Header from "@/components/Header";
 import { ragQuery, BASE, authHeaders } from "@/lib/api";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const COLLECTIONS = ["lineage-sops", "glih-default"];
 
@@ -13,6 +14,7 @@ const INITIAL_DOCS = [
 ];
 
 export default function DocumentsPage() {
+  const { can } = usePermissions();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any>(null);
   const [searching, setSearching] = useState(false);
@@ -241,7 +243,9 @@ export default function DocumentsPage() {
         {tab === "manage" && (
           <div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-              <button className="btn-primary" onClick={() => setShowModal(true)}>+ Ingest Document</button>
+              {can("documents:ingest") && (
+                <button className="btn-primary" onClick={() => setShowModal(true)}>+ Ingest Document</button>
+              )}
             </div>
             <div className="card" style={{ overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>

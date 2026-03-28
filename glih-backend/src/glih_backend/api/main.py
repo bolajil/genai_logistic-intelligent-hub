@@ -135,6 +135,7 @@ from .auth_utils import (
     store_refresh_token, get_refresh_token_owner, delete_refresh_token,
     get_current_user, create_admin_user, seed_sample_dispatchers,
 )
+from .permissions import require_permission, require_role
 import uuid as _uuid
 from datetime import datetime as _dt
 
@@ -436,7 +437,7 @@ class IngestRequest(BaseModel):
 
 
 @app.post("/ingest")
-def ingest(req: IngestRequest):
+def ingest(req: IngestRequest, _: dict = Depends(require_permission("documents:ingest"))):
     try:
         embeddings = _emb.embed(req.texts)
         if req.collection:
@@ -479,7 +480,7 @@ def llm_current():
 
 
 @app.post("/llm/select")
-def llm_select(req: LLMSelectRequest):
+def llm_select(req: LLMSelectRequest, _: dict = Depends(require_permission("settings:edit"))):
     try:
         provider = (req.provider or "openai").strip().lower()
         model = req.model
@@ -538,7 +539,7 @@ def embeddings_current():
 
 
 @app.post("/embeddings/select")
-def embeddings_select(req: EmbeddingsSelectRequest):
+def embeddings_select(req: EmbeddingsSelectRequest, _: dict = Depends(require_permission("settings:edit"))):
     try:
         provider = (req.provider or "openai").strip().lower()
         model = (req.model or "").strip() or None
@@ -670,7 +671,7 @@ _PDF_MAGIC = b"%PDF"  # PDF magic bytes for content-based type verification
 
 @app.post("/ingest/file")
 @limiter.limit(_RATE_LIMIT_INGEST)
-async def ingest_file(request: Request, files: List[UploadFile] = File(...), chunk_size: int = 1000, overlap: int = 200, collection: Optional[str] = None):
+async def ingest_file(request: Request, files: List[UploadFile] = File(...), chunk_size: int = 1000, overlap: int = 200, collection: Optional[str] = None, _: dict = Depends(require_permission("documents:ingest"))):
     try:
         texts: List[str] = []
         metas: List[Dict[str, Any]] = []
@@ -806,7 +807,7 @@ def _fetch_url_text(url: str, max_retries: int = 3) -> str:
 
 
 @app.post("/ingest/url")
-def ingest_url(req: URLIngestRequest):
+def ingest_url(req: URLIngestRequest, _: dict = Depends(require_permission("documents:ingest"))):
     texts: List[str] = []
     metas: List[Dict[str, Any]] = []
     errors: List[str] = []
@@ -956,7 +957,7 @@ def collection_stats(name: str):
 
 
 @app.delete("/index/collections/{name}")
-def delete_collection(name: str):
+def delete_collection(name: str, _: dict = Depends(require_permission("settings:edit"))):
     """Delete a collection permanently."""
     try:
         if name == _vs.collection:
@@ -974,7 +975,7 @@ def delete_collection(name: str):
 
 
 @app.post("/index/collections/{name}/reset")
-def reset_collection(name: str):
+def reset_collection(name: str, _: dict = Depends(require_permission("settings:edit"))):
     """Reset a collection (delete and recreate)."""
     try:
         if _vs.provider == "chromadb" and _vs._chroma:
@@ -1088,7 +1089,7 @@ def _run_anomaly_background(run_id: str, req: AnomalyRequest, user_id: str = "",
 
 @app.post("/agents/anomaly")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_anomaly_agent(request: Request, req: AnomalyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+def run_anomaly_agent(request: Request, req: AnomalyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(require_permission("agents:run"))):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"AnomalyResponder queued for {req.shipment_id}")
@@ -1141,7 +1142,7 @@ def _run_route_background(run_id: str, req: RouteRequest, user_id: str = "", use
 
 @app.post("/agents/route")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_route_agent(request: Request, req: RouteRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+def run_route_agent(request: Request, req: RouteRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(require_permission("agents:run"))):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"RouteAdvisor queued for {req.shipment_id}")
@@ -1202,7 +1203,7 @@ def _run_notify_background(run_id: str, req: NotifyRequest, user_id: str = "", u
 
 @app.post("/agents/notify")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_notify_agent(request: Request, req: NotifyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+def run_notify_agent(request: Request, req: NotifyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(require_permission("agents:run"))):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"CustomerNotifier queued for {req.customer_id}")
@@ -1242,7 +1243,7 @@ def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest, user_id: st
 
 @app.post("/agents/ops-summary")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_ops_summary_agent(request: Request, req: OpsSummaryRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+def run_ops_summary_agent(request: Request, req: OpsSummaryRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(require_permission("agents:run"))):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"OpsSummarizer queued — {req.time_window} window")
@@ -1406,7 +1407,7 @@ def list_dispatchers():
 
 
 @app.post("/dispatchers")
-def add_dispatcher(req: DispatcherCreate):
+def add_dispatcher(req: DispatcherCreate, _: dict = Depends(require_permission("admin:users"))):
     """Create a new dispatcher account."""
     try:
         dispatcher = create_dispatcher(req)
@@ -1503,7 +1504,7 @@ def _format_connector_name(key: str) -> str:
 
 
 @app.put("/settings/mcp/connector/{connector_id}")
-def update_mcp_connector(connector_id: str, config: MCPConnectorConfig):
+def update_mcp_connector(connector_id: str, config: MCPConnectorConfig, _: dict = Depends(require_permission("settings:edit"))):
     """Update a specific MCP connector configuration"""
     try:
         cfg = load_config()
@@ -1544,7 +1545,7 @@ def update_mcp_connector(connector_id: str, config: MCPConnectorConfig):
 
 
 @app.post("/settings/mcp/test/{connector_id}")
-async def test_mcp_connector(connector_id: str):
+async def test_mcp_connector(connector_id: str, _: dict = Depends(require_permission("settings:view"))):
     """Test connection to an MCP connector"""
     try:
         cfg = load_config()
@@ -1782,7 +1783,7 @@ async def list_fleet_trucks(
 
 
 @app.post("/fleet/trucks")
-async def create_fleet_truck(truck: TruckCreate):
+async def create_fleet_truck(truck: TruckCreate, _: dict = Depends(require_permission("fleet:manage"))):
     """Register a new truck in the fleet"""
     trucks = _load_trucks()
     
@@ -1803,7 +1804,7 @@ async def create_fleet_truck(truck: TruckCreate):
 
 
 @app.put("/fleet/trucks/{truck_id}")
-async def update_fleet_truck(truck_id: str, update: TruckUpdate):
+async def update_fleet_truck(truck_id: str, update: TruckUpdate, _: dict = Depends(require_permission("fleet:manage"))):
     """Update a truck's information"""
     trucks = _load_trucks()
     
@@ -1819,7 +1820,7 @@ async def update_fleet_truck(truck_id: str, update: TruckUpdate):
 
 
 @app.delete("/fleet/trucks/{truck_id}")
-async def delete_fleet_truck(truck_id: str, hard_delete: bool = False):
+async def delete_fleet_truck(truck_id: str, hard_delete: bool = False, _: dict = Depends(require_permission("fleet:manage"))):
     """Delete or deactivate a truck"""
     trucks = _load_trucks()
     
@@ -1839,7 +1840,7 @@ async def delete_fleet_truck(truck_id: str, hard_delete: bool = False):
 
 
 @app.post("/fleet/trucks/bulk")
-async def bulk_import_trucks(data: BulkTruckImport):
+async def bulk_import_trucks(data: BulkTruckImport, _: dict = Depends(require_permission("fleet:manage"))):
     """Bulk import trucks from CSV/Excel data"""
     trucks = _load_trucks()
     existing_ids = {t["truck_id"] for t in trucks}
@@ -1877,7 +1878,7 @@ async def bulk_import_trucks(data: BulkTruckImport):
 
 
 @app.post("/fleet/sync/gps-trace")
-async def sync_gps_trace_trucks():
+async def sync_gps_trace_trucks(_: dict = Depends(require_permission("fleet:manage"))):
     """Sync trucks from GPS-Trace API"""
     # Check if GPS-Trace is configured
     gps_cfg = _cfg.get("mcp", {}).get("connectors", {}).get("gps_trace", {})
