@@ -91,14 +91,32 @@ app = FastAPI(title="GLIH Backend", version="0.1.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS middleware
+# ── CORS — explicit origins and methods only ──────────────────────────────────
+_CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:3001,http://localhost:8501,http://localhost:9000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://localhost:3000", "http://localhost:3001", "http://localhost:9000"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
+
+# ── Security headers middleware ───────────────────────────────────────────────
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"]  = "nosniff"
+    response.headers["X-Frame-Options"]          = "DENY"
+    response.headers["X-XSS-Protection"]         = "1; mode=block"
+    response.headers["Referrer-Policy"]          = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"]       = "geolocation=(), microphone=(), camera=()"
+    if os.getenv("GLIH_ENV") == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # ── Auth setup ────────────────────────────────────────────────────────────────
 from .auth_utils import (
@@ -144,7 +162,8 @@ def _issue_tokens(user: dict) -> dict:
     }
 
 @app.post("/auth/register", status_code=201)
-def auth_register(body: _AuthRegisterReq):
+@limiter.limit("5/minute")
+def auth_register(request: Request, body: _AuthRegisterReq):
     if len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
     if get_user_by_email(body.email):
@@ -159,7 +178,8 @@ def auth_register(body: _AuthRegisterReq):
     return _issue_tokens(user)
 
 @app.post("/auth/login")
-def auth_login(body: _AuthLoginReq):
+@limiter.limit("10/minute")
+def auth_login(request: Request, body: _AuthLoginReq):
     user = get_user_by_email(body.email)
     dummy = "$2b$12$dummyhashtopreventtimingattacksXXXXXXXXXXXXXXXXXXXXXXXX"
     hashed = user["hashed_password"] if user else dummy
@@ -632,15 +652,33 @@ def _normalize_text(text: str) -> str:
         return text
 
 
+_MAX_UPLOAD_BYTES  = int(os.getenv("MAX_UPLOAD_MB", "20")) * 1024 * 1024   # default 20 MB
+_ALLOWED_MIME_TYPES = {"application/pdf", "text/plain", "text/csv", "application/octet-stream"}
+_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv", ".md"}
+_PDF_MAGIC = b"%PDF"  # PDF magic bytes for content-based type verification
+
+
 @app.post("/ingest/file")
-async def ingest_file(files: List[UploadFile] = File(...), chunk_size: int = 1000, overlap: int = 200, collection: Optional[str] = None):
+@limiter.limit(_RATE_LIMIT_INGEST)
+async def ingest_file(request: Request, files: List[UploadFile] = File(...), chunk_size: int = 1000, overlap: int = 200, collection: Optional[str] = None):
     try:
         texts: List[str] = []
         metas: List[Dict[str, Any]] = []
         for f in files:
-            content = await f.read()
-            name = f.filename or "uploaded"
-            if name.lower().endswith(".pdf"):
+            # ── Security: validate filename extension ──────────────────────────
+            import pathlib as _pl
+            name = (f.filename or "uploaded").strip()
+            ext  = _pl.Path(name).suffix.lower()
+            if ext not in _ALLOWED_EXTENSIONS:
+                raise HTTPException(400, f"File type '{ext}' not allowed. Allowed: {_ALLOWED_EXTENSIONS}")
+            # ── Security: read with size limit ────────────────────────────────
+            content = await f.read(_MAX_UPLOAD_BYTES + 1)
+            if len(content) > _MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"File '{name}' exceeds {_MAX_UPLOAD_BYTES // 1024 // 1024}MB limit")
+            # ── Security: verify PDF by magic bytes, not just extension ───────
+            if ext == ".pdf":
+                if not content.startswith(_PDF_MAGIC):
+                    raise HTTPException(400, f"File '{name}' is not a valid PDF")
                 text = _normalize_text(_extract_pdf_bytes(content))
             else:
                 try:
@@ -713,8 +751,8 @@ def _fetch_url_text(url: str, max_retries: int = 3) -> str:
         try:
             # Use tuple timeout: (connect_timeout, read_timeout)
             # Government PDFs can be very slow - allow up to 180s read
-            # Disable SSL verification for government sites with cert issues
-            r = session.get(url, timeout=(30, 180), headers=_HEADERS, stream=True, verify=False)
+            # SSL verification enabled — if a specific site has cert issues, add it to certifi bundle
+            r = session.get(url, timeout=(30, 180), headers=_HEADERS, stream=True, verify=True)
             r.raise_for_status()
             
             # For large files, read in chunks

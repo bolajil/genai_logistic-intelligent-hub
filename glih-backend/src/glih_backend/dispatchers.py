@@ -4,9 +4,12 @@ Dispatcher management for GLIH - handles dispatcher accounts and authentication.
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
-import hashlib
+import os
 import secrets
 import logging
+from passlib.context import CryptContext
+
+_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +44,20 @@ class DispatcherLogin(BaseModel):
     password: str
 
 
-# Admin account (separate from dispatchers)
+# Admin account — password from env var only. No default allowed in production.
+_ADMIN_PASSWORD = os.getenv("DISPATCHER_ADMIN_PASSWORD", "")
+if not _ADMIN_PASSWORD:
+    import warnings
+    warnings.warn(
+        "DISPATCHER_ADMIN_PASSWORD env var is not set. "
+        "Dispatcher admin login will be disabled until it is configured.",
+        stacklevel=1,
+    )
+
 _admin = {
     "username": "admin",
-    "password_hash": hashlib.sha256("lineage2026".encode()).hexdigest(),
+    # bcrypt hash computed at startup from env var; empty string if not configured
+    "password_hash": _pwd_ctx.hash(_ADMIN_PASSWORD) if _ADMIN_PASSWORD else "",
     "name": "System Administrator",
     "role": "admin",
 }
@@ -91,13 +104,15 @@ _sessions: Dict[str, str] = {}
 
 
 def hash_password(password: str) -> str:
-    """Hash a password for storage."""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt."""
+    return _pwd_ctx.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verify a password against a hash."""
-    return hash_password(password) == password_hash
+    """Verify a password against a bcrypt hash."""
+    if not password_hash:
+        return False
+    return _pwd_ctx.verify(password, password_hash)
 
 
 def generate_token() -> str:

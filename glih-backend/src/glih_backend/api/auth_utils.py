@@ -23,7 +23,21 @@ logger = logging.getLogger(__name__)
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_EXPIRE_MINUTES", "60"))
 REFRESH_TOKEN_EXPIRE_DAYS   = int(os.getenv("JWT_REFRESH_EXPIRE_DAYS", "7"))
 ALGORITHM                   = "HS256"
-JWT_SECRET_KEY               = os.getenv("JWT_SECRET", "glih-jwt-secret-change-in-production-2025")
+
+_JWT_SECRET_RAW = os.getenv("JWT_SECRET", "")
+_GLIH_ENV       = os.getenv("GLIH_ENV", "development")
+
+if not _JWT_SECRET_RAW:
+    if _GLIH_ENV == "production":
+        raise RuntimeError("JWT_SECRET env var is required in production. Set it before starting.")
+    # Dev fallback — insecure, logged as warning
+    _JWT_SECRET_RAW = "glih-dev-only-insecure-secret-do-not-use-in-production"
+    logger.warning("JWT_SECRET not set — using insecure dev default. Set JWT_SECRET before deploying.")
+
+if len(_JWT_SECRET_RAW) < 32:
+    logger.warning("JWT_SECRET is shorter than 32 characters — use a longer secret in production.")
+
+JWT_SECRET_KEY = _JWT_SECRET_RAW
 
 _bearer = HTTPBearer(auto_error=False)
 
