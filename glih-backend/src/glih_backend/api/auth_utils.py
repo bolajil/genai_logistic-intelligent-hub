@@ -138,7 +138,10 @@ def create_admin_user() -> None:
     email = "admin@glih.ops"
     if get_user_by_email(email):
         return
-    seed_password = os.getenv("GLIH_ADMIN_PASSWORD", "glih-admin-2025")
+    seed_password = os.getenv("GLIH_ADMIN_PASSWORD", "")
+    if not seed_password:
+        logger.warning("GLIH_ADMIN_PASSWORD not set — skipping admin seed. Set it in .env to create the admin account.")
+        return
     admin = {
         "id":                    str(uuid.uuid4()),
         "name":                  "GLIH Admin",
@@ -154,7 +157,10 @@ def create_admin_user() -> None:
 
 def seed_sample_dispatchers() -> None:
     """Seed sample dispatcher accounts for dev/demo use. Skips any that already exist."""
-    dispatcher_password = os.getenv("GLIH_DISPATCHER_PASSWORD", "Dispatcher@2026")
+    dispatcher_password = os.getenv("GLIH_DISPATCHER_PASSWORD", "")
+    if not dispatcher_password:
+        logger.warning("GLIH_DISPATCHER_PASSWORD not set — skipping dispatcher seed. Set it in .env to create sample accounts.")
+        return
     sample_users = [
         {"name": "Sarah Chen",   "email": "s.chen@lineage.com",  "role": "admin"},
         {"name": "Marcus Webb",  "email": "m.webb@lineage.com",  "role": "analyst"},
