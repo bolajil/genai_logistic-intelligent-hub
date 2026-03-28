@@ -32,6 +32,14 @@ services:
       - IOT_API_ENDPOINT=${IOT_API_ENDPOINT:-}
       - TRAFFIC_PROVIDER=${TRAFFIC_PROVIDER:-}
       - TRAFFIC_API_KEY=${TRAFFIC_API_KEY:-}
+      # Auth — required, no defaults in code
+      - JWT_SECRET=${JWT_SECRET}
+      - GLIH_ADMIN_PASSWORD=${GLIH_ADMIN_PASSWORD}
+      - GLIH_DISPATCHER_PASSWORD=${GLIH_DISPATCHER_PASSWORD}
+      # Backend config
+      - GLIH_BACKEND_PORT=9001
+      - GLIH_CONFIG=/app/config/glih.toml
+      - GLIH_BACKEND_URL=http://localhost:9001
     volumes:
       - ./config:/app/config:ro
       - ./data:/app/data

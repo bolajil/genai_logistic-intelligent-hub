@@ -37,3 +37,21 @@ variable "traffic_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "glih_admin_password" {
+  description = "Seed password for admin@glih.ops account (force_password_change=true on first login)"
+  type        = string
+  sensitive   = true
+}
+
+variable "glih_dispatcher_password" {
+  description = "Seed password for sample dispatcher accounts (force_password_change=true on first login)"
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_secret" {
+  description = "HS256 JWT signing secret — must be at least 32 characters"
+  type        = string
+  sensitive   = true
+}

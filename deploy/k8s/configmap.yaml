@@ -15,3 +15,6 @@ data:
   GPS_TRACE_MODE: "demo"
   IOT_MODE: "demo"
   TRAFFIC_PROVIDER: "demo"
+  GLIH_BACKEND_PORT: "9001"
+  GLIH_BACKEND_URL: "http://glih-backend:9001"
+  GLIH_CONFIG: "/app/config/glih.toml"
