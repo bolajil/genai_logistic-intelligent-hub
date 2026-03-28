@@ -196,7 +196,7 @@ class WeaviateStore(VectorStoreBase):
                 import json
                 try:
                     metadata = json.loads(obj.get('metadata', '{}'))
-                except:
+                except Exception:
                     metadata = {}
                 
                 result_obj = {

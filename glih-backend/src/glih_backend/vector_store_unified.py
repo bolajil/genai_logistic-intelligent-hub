@@ -1,6 +1,5 @@
 """Unified vector store interface that wraps the multi-provider system."""
 
-import os
 import uuid
 from typing import Any, Dict, List, Optional
 import logging

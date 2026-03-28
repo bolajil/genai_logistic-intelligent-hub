@@ -132,14 +132,14 @@ def login(username: str, password: str) -> Optional[Dict[str, Any]]:
         return None
     
     if not verify_password(password, _admin["password_hash"]):
-        logger.warning(f"Login failed: invalid password for admin")
+        logger.warning("Login failed: invalid password for admin")
         return None
     
     # Create session
     token = generate_token()
     _sessions[token] = "ADMIN"
     
-    logger.info(f"Admin logged in successfully")
+    logger.info("Admin logged in successfully")
     
     return {
         "token": token,

@@ -8,7 +8,6 @@ import threading
 import requests
 from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -138,7 +137,6 @@ from .auth_utils import (
 )
 import uuid as _uuid
 from datetime import datetime as _dt
-from pydantic import EmailStr
 
 @app.on_event("startup")
 async def _startup():
@@ -1705,7 +1703,7 @@ def _load_trucks() -> List[Dict[str, Any]]:
     if TRUCKS_FILE.exists():
         try:
             return json.loads(TRUCKS_FILE.read_text())
-        except:
+        except Exception:
             return []
     return []
 
@@ -1794,7 +1792,7 @@ async def create_fleet_truck(truck: TruckCreate):
     new_truck = {
         **truck.dict(),
         "active": True,
-        "created_at": datetime.now().isoformat(),
+        "created_at": _datetime.utcnow().isoformat(),
         "source": "manual",
     }
     trucks.append(new_truck)
@@ -1812,7 +1810,7 @@ async def update_fleet_truck(truck_id: str, update: TruckUpdate):
         if t["truck_id"] == truck_id:
             for key, value in update.dict(exclude_none=True).items():
                 trucks[i][key] = value
-            trucks[i]["updated_at"] = datetime.now().isoformat()
+            trucks[i]["updated_at"] = _datetime.utcnow().isoformat()
             _save_trucks(trucks)
             return {"message": "Truck updated", "truck": trucks[i]}
     
@@ -1832,7 +1830,7 @@ async def delete_fleet_truck(truck_id: str, hard_delete: bool = False):
                 return {"message": f"Truck {truck_id} permanently deleted"}
             else:
                 trucks[i]["active"] = False
-                trucks[i]["deactivated_at"] = datetime.now().isoformat()
+                trucks[i]["deactivated_at"] = _datetime.utcnow().isoformat()
                 _save_trucks(trucks)
                 return {"message": f"Truck {truck_id} deactivated"}
     
@@ -1857,7 +1855,7 @@ async def bulk_import_trucks(data: BulkTruckImport):
             new_truck = {
                 **truck.dict(),
                 "active": True,
-                "created_at": datetime.now().isoformat(),
+                "created_at": _datetime.utcnow().isoformat(),
                 "source": "bulk_import",
             }
             trucks.append(new_truck)
@@ -1869,7 +1867,7 @@ async def bulk_import_trucks(data: BulkTruckImport):
     _save_trucks(trucks)
     
     return {
-        "message": f"Bulk import complete",
+        "message": "Bulk import complete",
         "created": created,
         "skipped": skipped,
         "errors": errors,
@@ -1911,7 +1909,7 @@ async def sync_gps_trace_trucks():
                 # Update existing truck with GPS data
                 idx = existing_ids[truck_id]
                 trucks[idx]["device_id"] = gt.get("device_id")
-                trucks[idx]["gps_trace_synced"] = datetime.now().isoformat()
+                trucks[idx]["gps_trace_synced"] = _datetime.utcnow().isoformat()
                 synced += 1
             else:
                 # Add new truck from GPS-Trace
@@ -1922,7 +1920,7 @@ async def sync_gps_trace_trucks():
                     "license_plate": gt.get("plate"),
                     "reefer_equipped": True,
                     "active": True,
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": _datetime.utcnow().isoformat(),
                     "source": "gps_trace",
                 })
                 added += 1
@@ -1953,7 +1951,7 @@ async def get_fleet_stats():
         in_transit = sum(1 for t in live_trucks if t.get("status") == "in_transit")
         idle = sum(1 for t in live_trucks if t.get("status") == "idle")
         offline = len(active) - len(live_trucks)
-    except:
+    except Exception:
         in_transit = 0
         idle = 0
         offline = len(active)

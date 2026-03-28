@@ -322,7 +322,7 @@ class MCPClient:
     async def get_shipment_sensors(self, shipment_id: str) -> List[SensorResource]:
         """Get all sensors for a shipment."""
         results = await self.query_resources(
-            f"iot://sensors/*",
+            "iot://sensors/*",
             filters={"shipment_id": shipment_id}
         )
         

@@ -7,7 +7,6 @@ Admin seed    : admin@glih.ops / glih-admin-2025  (force_password_change=True)
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import secrets
@@ -15,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)

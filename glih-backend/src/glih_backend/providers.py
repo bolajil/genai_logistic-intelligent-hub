@@ -357,7 +357,7 @@ def make_vector_store(cfg: Dict[str, Any]) -> VectorStore:
 
 
 def make_llm_provider(cfg: Dict[str, Any]) -> LLMProvider:
-    l = cfg.get("llm", {}) if isinstance(cfg, dict) else {}
-    provider = l.get("provider", "openai")
-    model = l.get("model", "gpt-4o-mini")
+    llm_cfg = cfg.get("llm", {}) if isinstance(cfg, dict) else {}
+    provider = llm_cfg.get("provider", "openai")
+    model = llm_cfg.get("model", "gpt-4o-mini")
     return LLMProvider(provider=provider, model=model)

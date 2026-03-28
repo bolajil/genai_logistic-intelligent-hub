@@ -6,13 +6,11 @@ This server can be run standalone or embedded in the GLIH backend.
 When API keys aren't configured, it returns simulated data for demo mode.
 """
 
-import os
-import json
 import random
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)

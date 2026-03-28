@@ -3,7 +3,6 @@
 import faiss
 import numpy as np
 import pickle
-import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
