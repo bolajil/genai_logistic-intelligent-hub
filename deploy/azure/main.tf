@@ -176,6 +176,75 @@ resource "azurerm_container_registry" "glih" {
 }
 
 # ============================================================
+# Azure Key Vault — GLIH application secrets
+# Stores JWT_SECRET, SENTRY_DSN, OPENAI_API_KEY, DATABASE_URL
+# AKS pods access via Workload Identity + CSI secret store driver
+# ============================================================
+resource "azurerm_key_vault" "glih" {
+  name                = "glih-kv-${var.environment}"
+  location            = azurerm_resource_group.glih.location
+  resource_group_name = azurerm_resource_group.glih.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+
+  soft_delete_retention_days = var.environment == "production" ? 90 : 7
+  purge_protection_enabled   = var.environment == "production"
+
+  tags = {
+    Project     = "GLIH"
+    Environment = var.environment
+  }
+}
+
+data "azurerm_client_config" "current" {}
+
+# Secrets — values must be set manually after vault creation
+resource "azurerm_key_vault_secret" "jwt_secret" {
+  name         = "glih-jwt-secret"
+  value        = "REPLACE_WITH_GENERATED_SECRET"  # python -c "import secrets; print(secrets.token_hex(32))"
+  key_vault_id = azurerm_key_vault.glih.id
+
+  lifecycle {
+    ignore_changes = [value]  # Prevent Terraform overwriting manual updates
+  }
+}
+
+resource "azurerm_key_vault_secret" "openai_key" {
+  name         = "glih-openai-api-key"
+  value        = "REPLACE_WITH_OPENAI_KEY"
+  key_vault_id = azurerm_key_vault.glih.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "azurerm_key_vault_secret" "sentry_dsn" {
+  name         = "glih-sentry-dsn"
+  value        = "REPLACE_WITH_SENTRY_DSN"
+  key_vault_id = azurerm_key_vault.glih.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+# AKS managed identity access to Key Vault
+resource "azurerm_user_assigned_identity" "glih_backend" {
+  name                = "glih-backend-identity"
+  resource_group_name = azurerm_resource_group.glih.name
+  location            = azurerm_resource_group.glih.location
+}
+
+resource "azurerm_key_vault_access_policy" "glih_backend" {
+  key_vault_id = azurerm_key_vault.glih.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_user_assigned_identity.glih_backend.principal_id
+
+  secret_permissions = ["Get", "List"]
+}
+
+# ============================================================
 # Storage Account for trucks.json persistence
 # ============================================================
 resource "azurerm_storage_account" "glih" {
@@ -209,4 +278,14 @@ output "redis_hostname" {
 
 output "acr_login_server" {
   value = azurerm_container_registry.glih.login_server
+}
+
+output "key_vault_uri" {
+  value       = azurerm_key_vault.glih.vault_uri
+  description = "Key Vault URI — reference secrets in AKS pod spec via CSI Secret Store driver"
+}
+
+output "backend_identity_client_id" {
+  value       = azurerm_user_assigned_identity.glih_backend.client_id
+  description = "Assign to AKS backend pod via azure.workload.identity/client-id annotation"
 }

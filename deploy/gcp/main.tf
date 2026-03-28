@@ -171,6 +171,59 @@ resource "google_storage_bucket" "glih_data" {
 }
 
 # ============================================================
+# GCP Secret Manager — GLIH application secrets
+# Stores JWT_SECRET, SENTRY_DSN, OPENAI_API_KEY, DATABASE_URL
+# Backend reads via Workload Identity + Secret Manager API
+# ============================================================
+resource "google_secret_manager_secret" "glih_jwt" {
+  secret_id = "glih-jwt-secret-${var.environment}"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "glih_jwt" {
+  secret      = google_secret_manager_secret.glih_jwt.id
+  secret_data = "REPLACE_WITH_GENERATED_SECRET"  # python -c "import secrets; print(secrets.token_hex(32))"
+
+  lifecycle {
+    ignore_changes = [secret_data]  # Prevent Terraform overwriting manual updates
+  }
+}
+
+resource "google_secret_manager_secret" "glih_openai" {
+  secret_id = "glih-openai-key-${var.environment}"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret" "glih_sentry" {
+  secret_id = "glih-sentry-dsn-${var.environment}"
+  replication {
+    auto {}
+  }
+}
+
+# Service account for GKE workloads to access secrets
+resource "google_service_account" "glih_backend" {
+  account_id   = "glih-backend-${var.environment}"
+  display_name = "GLIH Backend Service Account"
+}
+
+resource "google_secret_manager_secret_iam_member" "jwt_access" {
+  secret_id = google_secret_manager_secret.glih_jwt.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.glih_backend.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "openai_access" {
+  secret_id = google_secret_manager_secret.glih_openai.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.glih_backend.email}"
+}
+
+# ============================================================
 # Outputs
 # ============================================================
 output "gke_cluster_name" {
@@ -187,4 +240,14 @@ output "redis_host" {
 
 output "artifact_registry_url" {
   value = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.glih.repository_id}"
+}
+
+output "backend_service_account" {
+  value       = google_service_account.glih_backend.email
+  description = "Use for GKE Workload Identity — annotate backend pod service account with this"
+}
+
+output "jwt_secret_name" {
+  value       = google_secret_manager_secret.glih_jwt.name
+  description = "Reference in GKE pod spec as environment variable from Secret Manager"
 }

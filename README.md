@@ -9,6 +9,45 @@
 
 ---
 
+## What's New (v2.1) — Production Hardening
+
+### 🛡️ Rate Limiting
+- **slowapi middleware** — per-IP limits: 30 req/min on `/query`, 20/min on agents, 10/min on ingest
+- Configurable via env vars (`RATE_LIMIT_QUERY`, `RATE_LIMIT_AGENTS`, `RATE_LIMIT_INGEST`)
+- Returns HTTP 429 with Retry-After header on breach
+
+### 🔴 Sentry Error Tracking
+- Automatic crash capture with full stack trace, request payload, and user context
+- Zero config — activates only when `SENTRY_DSN` env var is set
+- Integrated with FastAPI + Starlette middleware for request-level tracing
+
+### ⚡ Gunicorn Production Server
+- Multi-worker config: `(2 × CPU cores) + 1` uvicorn workers
+- 120s timeout for LLM agent calls, 30s graceful shutdown
+- `glih-backend/gunicorn.conf.py` — drop-in production config
+
+### 🔑 JWT Secret from Environment
+- JWT secret moved from hardcoded string to `JWT_SECRET` env var
+- Configurable token expiry: `JWT_ACCESS_EXPIRE_MINUTES`, `JWT_REFRESH_EXPIRE_DAYS`
+
+### 📊 Live Agent Progress Tracking
+- All 4 agents run as background tasks, returning `run_id` immediately
+- `GET /agents/progress/{run_id}` — poll for timestamped step events
+- Frontend live execution log: color-coded retrieval / LLM / complete events
+- Vector search and LLM closures emit events at every tool call
+
+### 🧪 Load Testing Suite
+- Locust load test at `tests/load_test.py` — simulates dispatcher workflows
+- Tests: SOP query (5x weight), health (3x), anomaly agent (2x), index (1x)
+- Supports: baseline 10 users → stress 500 → spike 1000
+
+### 📋 Production Readiness Guide
+- [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) — 12-section guide: DB migration, Redis, testing, Kubernetes HPA, monitoring
+- Go/no-go checklist with 6 key metrics and thresholds
+- Full PostgreSQL schema + Redis implementation code included
+
+---
+
 ## What's New (v2.0)
 
 ### 🚚 Fleet Management
@@ -627,22 +666,101 @@ Full architectural decisions, database schema, connector abstraction, agent wiri
 - [x] **Settings UI** — API keys, LLM provider, connector config
 - [x] **Graceful degradation** — demo mode fallback when APIs unavailable
 
+### Completed ✅ (v2.1 — Production Hardening)
+
+- [x] **JWT auth** — bcrypt + HS256, secret from env var, force_password_change on first login
+- [x] **Rate limiting** — slowapi per-IP limits on all heavy endpoints
+- [x] **Sentry error tracking** — crash capture with request + user context
+- [x] **Gunicorn production config** — multi-worker, graceful shutdown
+- [x] **Live agent progress tracking** — background tasks + polling endpoint + frontend event log
+- [x] **Locust load test suite** — dispatcher workflow simulation
+- [x] **Production Readiness Guide** — DB migration, Redis, K8s HPA, monitoring
+
 ### In Progress 🔄
 
-- [ ] JWT + OAuth2 + API key authentication + RBAC
-- [ ] Agent API endpoints (the critical wiring)
+- [ ] PostgreSQL migration (replace `glih_users.json`)
+- [ ] Redis for shared agent progress store (multi-worker safe)
 - [ ] Real-time SSE + MQTT IoT pipeline
 - [ ] Langfuse LLM observability
-- [ ] Locust load testing suite
 
 ### Planned 📋
 
 - [ ] Alembic database migrations
 - [ ] Docker Compose (10 services)
 - [ ] GitHub Actions CI/CD
-- [ ] Terraform: AWS · GCP · Azure
 - [ ] Mobile app (React Native)
 - [ ] Multi-tenant support
+
+---
+
+## Production Readiness
+
+### Quick Start — Production Mode
+
+```bash
+# 1. Install production dependencies
+pip install slowapi "sentry-sdk[fastapi]" gunicorn
+
+# 2. Generate a secure JWT secret
+python -c "import secrets; print(secrets.token_hex(32))"
+
+# 3. Update .env
+JWT_SECRET=<generated-value>
+SENTRY_DSN=https://your-key@sentry.io/project   # optional
+GLIH_ENV=production
+RATE_LIMIT_QUERY=30/minute
+RATE_LIMIT_AGENTS=20/minute
+
+# 4. Start with Gunicorn (Linux/Docker)
+cd glih-backend
+gunicorn -c gunicorn.conf.py glih_backend.api.main:app
+
+# 5. Start with uvicorn (Windows dev)
+uvicorn glih_backend.api.main:app --host 0.0.0.0 --port 9001
+```
+
+### Go/No-Go Checklist Before Deployment
+
+| Check | Command | Pass Threshold |
+|---|---|---|
+| Health check | `curl /health/detailed` | All providers `"available": true` |
+| Rate limiting active | Fire 35 queries, expect 429 | HTTP 429 on request 31+ |
+| JWT from env | `echo $JWT_SECRET` | Non-empty, min 32 chars |
+| Load test P95 | `locust -f tests/load_test.py` | P95 < 3s at 100 users |
+| Error rate | Locust report | < 0.1% |
+| Linting | `ruff check glih-backend/src/` | 0 errors |
+
+### Full Production Guide
+
+See [PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md) for:
+- PostgreSQL migration (replace flat-file user store)
+- Redis integration (shared agent progress across workers)
+- Nginx reverse proxy config
+- Kubernetes HPA for 100k+ users
+- Prometheus + Grafana monitoring
+- All 6 go/no-go metrics with thresholds
+
+### Cloud Deployment
+
+| Provider | IaC | Services Provisioned |
+|---|---|---|
+| AWS | `deploy/aws/main.tf` | EKS + RDS PostgreSQL + ElastiCache Redis + ECR + Secrets Manager |
+| GCP | `deploy/gcp/main.tf` | GKE Autopilot + Cloud SQL + Memorystore + Artifact Registry + Secret Manager |
+| Azure | `deploy/azure/main.tf` | AKS + PostgreSQL Flexible Server + Azure Cache + ACR + Key Vault |
+
+```bash
+# Deploy to AWS
+cd deploy/aws
+terraform init && terraform plan && terraform apply
+
+# Deploy to GCP
+cd deploy/gcp
+terraform init -var="project_id=YOUR_PROJECT" && terraform apply
+
+# Deploy to Azure
+cd deploy/azure
+terraform init && terraform apply
+```
 
 ---
 

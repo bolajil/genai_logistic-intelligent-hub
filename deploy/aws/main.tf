@@ -205,6 +205,50 @@ resource "aws_ecr_repository" "frontend" {
 }
 
 # ============================================================
+# AWS Secrets Manager — GLIH application secrets
+# Stores JWT_SECRET, SENTRY_DSN, OPENAI_API_KEY, DATABASE_URL
+# Backend reads these at startup via boto3 or as injected env vars
+# ============================================================
+resource "aws_secretsmanager_secret" "glih" {
+  name                    = "glih/${var.environment}/app-secrets"
+  description             = "GLIH application secrets — JWT, Sentry, OpenAI, DB credentials"
+  recovery_window_in_days = var.environment == "production" ? 30 : 0
+}
+
+resource "aws_secretsmanager_secret_version" "glih" {
+  secret_id = aws_secretsmanager_secret.glih.id
+  secret_string = jsonencode({
+    JWT_SECRET     = "REPLACE_WITH_GENERATED_SECRET"   # python -c "import secrets; print(secrets.token_hex(32))"
+    SENTRY_DSN     = ""                                 # Set after Sentry project created
+    OPENAI_API_KEY = ""                                 # Set from OpenAI dashboard
+    DATABASE_URL   = "postgresql://glih_admin:${var.db_password}@${aws_db_instance.glih.endpoint}/glih"
+    REDIS_URL      = "redis://${aws_elasticache_cluster.glih.cache_nodes[0].address}:6379"
+    GLIH_ENV       = var.environment
+    RATE_LIMIT_QUERY  = "30/minute"
+    RATE_LIMIT_AGENTS = "20/minute"
+    RATE_LIMIT_INGEST = "10/minute"
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]  # Prevent Terraform overwriting manual secret updates
+  }
+}
+
+# IAM policy allowing EKS pods to read secrets
+resource "aws_iam_policy" "glih_secrets" {
+  name = "glih-secrets-read-${var.environment}"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+      Resource = aws_secretsmanager_secret.glih.arn
+    }]
+  })
+}
+
+# ============================================================
 # Outputs
 # ============================================================
 output "eks_cluster_endpoint" {
@@ -225,4 +269,9 @@ output "ecr_backend_url" {
 
 output "ecr_frontend_url" {
   value = aws_ecr_repository.frontend.repository_url
+}
+
+output "secrets_manager_arn" {
+  value       = aws_secretsmanager_secret.glih.arn
+  description = "ARN of Secrets Manager secret — use with EKS service account IAM role"
 }
