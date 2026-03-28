@@ -1,9 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import Header from "@/components/Header";
-import { ragQuery } from "@/lib/api";
-
-const BASE = "http://localhost:9001";
+import { ragQuery, BASE, authHeaders } from "@/lib/api";
 
 const COLLECTIONS = ["lineage-sops", "glih-default"];
 
@@ -65,7 +63,7 @@ export default function DocumentsPage() {
         const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min
         const res = await fetch(`${BASE}/ingest/url`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify({ urls, collection, chunk_size: 800 }),
           signal: controller.signal,
         });
@@ -88,7 +86,12 @@ export default function DocumentsPage() {
         if (!files || files.length === 0) throw new Error("No file selected");
         const fd = new FormData();
         Array.from(files).forEach(f => fd.append("files", f));
-        const res = await fetch(`${BASE}/ingest/file?collection=${encodeURIComponent(collection)}`, { method: "POST", body: fd });
+        const token = localStorage.getItem("glih_access_token");
+        const res = await fetch(`${BASE}/ingest/file?collection=${encodeURIComponent(collection)}`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
         data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
         if ((data.ingested ?? 0) === 0) throw new Error("0 chunks extracted — try a .txt file or use URL ingest for PDFs");
@@ -102,7 +105,7 @@ export default function DocumentsPage() {
         if (!pastedText.trim()) throw new Error("No text entered");
         const res = await fetch(`${BASE}/ingest`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders(),
           body: JSON.stringify({ texts: [pastedText], collection, metadatas: [{ source: docName || "manual-paste", type: "manual" }] }),
         });
         data = await res.json();

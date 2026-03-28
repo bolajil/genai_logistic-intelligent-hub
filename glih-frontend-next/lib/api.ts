@@ -1,9 +1,18 @@
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9001";
 
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("glih_access_token") : null;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { ...authHeaders(), ...(options?.headers as Record<string, string> ?? {}) },
   });
   if (!res.ok) {
     const err = await res.text();
@@ -11,6 +20,8 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return res.json();
 }
+
+export { BASE, authHeaders };
 
 // Health
 export const getHealth = () => req<{ status: string }>("/health");
@@ -31,7 +42,7 @@ export interface QueryResult {
 
 export const ragQuery = async (query: string, collection = "lineage-sops", topK = 5): Promise<any> => {
   const params = new URLSearchParams({ q: query, collection, k: String(topK), style: "bulleted" });
-  const res = await fetch(`${BASE}/query?${params}`);
+  const res = await fetch(`${BASE}/query?${params}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status}`);
   return res.json();
 };
