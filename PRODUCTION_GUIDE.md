@@ -16,6 +16,13 @@
 7. [Priority 5 — Testing Strategy](#7-priority-5--testing-strategy)
 8. [Priority 6 — Load Testing](#8-priority-6--load-testing)
 9. [Priority 7 — Monitoring & Alerting](#9-priority-7--monitoring--alerting)
+10. [Priority 8 — Langfuse LLM Observability](#10-priority-8--langfuse-llm-observability)
+11. [Priority 9 — Infrastructure Scaling](#11-priority-9--infrastructure-scaling)
+12. [Deployment Commands](#12-deployment-commands)
+13. [The 6 Numbers You Must Know Before Go-Live](#13-the-6-numbers-you-must-know-before-go-live)
+7. [Priority 5 — Testing Strategy](#7-priority-5--testing-strategy)
+8. [Priority 6 — Load Testing](#8-priority-6--load-testing)
+9. [Priority 7 — Monitoring & Alerting](#9-priority-7--monitoring--alerting)
 10. [Priority 8 — Infrastructure Scaling](#10-priority-8--infrastructure-scaling)
 11. [Deployment Commands](#11-deployment-commands)
 12. [The 6 Numbers You Must Know Before Go-Live](#12-the-6-numbers-you-must-know-before-go-live)
@@ -622,7 +629,180 @@ gunicorn -c gunicorn.conf.py glih_backend.api.main:app \
 
 ---
 
-## 10. Priority 8 — Infrastructure Scaling
+## 10. Priority 8 — Langfuse LLM Observability
+
+### Why This Matters
+
+Sentry catches Python crashes. Prometheus tracks request rates. But neither tells you:
+
+- Which dispatcher's query cost $0.08 in tokens?
+- Why did the AnomalyResponder return a wrong recommendation on shipment CHI-ATL-089?
+- Which agent prompt is producing low-quality answers?
+- How many total GPT-4o tokens did we burn today?
+
+**Langfuse** is purpose-built LLM observability. It traces every prompt → response cycle, shows token costs per user, lets you replay and debug bad outputs, and helps you compare prompt versions.
+
+### Setup — 10 Minutes
+
+#### Step 1: Create a Langfuse account
+
+Go to [cloud.langfuse.com](https://cloud.langfuse.com) → Create free account → Create a new project called **GLIH OPS**.
+
+Copy your:
+- `LANGFUSE_PUBLIC_KEY`
+- `LANGFUSE_SECRET_KEY`
+- `LANGFUSE_HOST` (default: `https://cloud.langfuse.com`)
+
+#### Step 2: Install
+
+```bash
+pip install langfuse
+```
+
+#### Step 3: Add to `.env`
+
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-your-key
+LANGFUSE_SECRET_KEY=sk-lf-your-key
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+#### Step 4: Wrap the LLM provider in `providers.py`
+
+Find the `LLMProvider.generate()` method and wrap it with Langfuse tracing:
+
+```python
+# In glih-backend/src/glih_backend/providers.py
+
+import os
+from langfuse import Langfuse
+from langfuse.decorators import observe, langfuse_context
+
+# Initialise — only activates when keys are present
+_langfuse = Langfuse(
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY", ""),
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY", ""),
+    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+    enabled=bool(os.getenv("LANGFUSE_PUBLIC_KEY")),  # safe no-op if keys absent
+)
+
+class LLMProvider:
+    def generate(self, prompt: str, user_id: str = None) -> str:
+        # Create a Langfuse generation trace
+        generation = _langfuse.generation(
+            name="glih-llm-call",
+            model=self.model,
+            input=prompt,
+            metadata={"provider": self.provider, "user_id": user_id},
+        )
+        try:
+            # Your existing LLM call
+            result = self._call_llm(prompt)
+
+            # Record the output and token usage
+            generation.end(
+                output=result,
+                usage={
+                    "input": len(prompt.split()),   # approx — use tiktoken for exact
+                    "output": len(result.split()),
+                }
+            )
+            return result
+        except Exception as e:
+            generation.end(level="ERROR", status_message=str(e))
+            raise
+```
+
+#### Step 5: Pass user_id from agent endpoints
+
+Update agent endpoints in `main.py` to pass the logged-in dispatcher's ID so Langfuse can show per-user cost:
+
+```python
+# In each _run_*_background function, pass user_id to llm_fn
+def _make_llm_fn(run_id: str = None, user_id: str = None):
+    def _generate(prompt: str) -> str:
+        if run_id:
+            emit_progress(run_id, "llm_call", f"Calling {_llm.provider}/{_llm.model}...")
+        result = _llm.generate(prompt, user_id=user_id)
+        if run_id:
+            emit_progress(run_id, "llm_done", f"LLM response received ({len(result)} chars)")
+        return result
+    return _generate
+```
+
+#### Step 6: Add to the `/query` endpoint
+
+```python
+@app.get("/query")
+@limiter.limit(_RATE_LIMIT_QUERY)
+def query(request: Request, q: str = "hello", ...):
+    # Get user from auth token if available
+    user_id = None
+    try:
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if token:
+            payload = decode_access_token(token)
+            user_id = payload.get("sub")
+    except Exception:
+        pass
+
+    # Pass user_id into LLM fn for Langfuse tracing
+    answer = _llm.generate(prompt, user_id=user_id)
+```
+
+### What You See in Langfuse Dashboard
+
+After setup, every LLM call appears in your Langfuse project with:
+
+| Field | Example |
+|---|---|
+| Trace name | `glih-llm-call` |
+| Model | `gpt-4o` |
+| User | `dispatcher-john-martinez` |
+| Input tokens | 842 |
+| Output tokens | 127 |
+| Cost | $0.014 |
+| Latency | 2.3s |
+| Input (prompt) | Full prompt text |
+| Output | Full LLM response |
+
+### Cost Tracking Per Agent
+
+Once user_id is passed, Langfuse shows:
+
+```
+Today's LLM spend by agent:
+  AnomalyResponder  — $1.24   (48 calls)
+  RouteAdvisor      — $0.87   (33 calls)
+  CustomerNotifier  — $2.10   (81 calls)  ← most expensive
+  OpsSummarizer     — $0.43   (12 calls)
+  /query endpoint   — $3.91   (312 calls)
+  ─────────────────────────────
+  Total today       — $8.55
+```
+
+This tells you exactly where your OpenAI budget is going and which dispatcher or agent type is driving cost.
+
+### Add to `.env.example`
+
+```bash
+# ── Langfuse LLM Observability ────────────────────────────────────────────────
+# Get keys from cloud.langfuse.com — free tier available
+LANGFUSE_PUBLIC_KEY=pk-lf-
+LANGFUSE_SECRET_KEY=sk-lf-
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+### Add to Cloud Secrets
+
+For production deployments, add `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` to:
+- **AWS**: Add to `aws_secretsmanager_secret` in `deploy/aws/main.tf`
+- **GCP**: Create a new `google_secret_manager_secret` in `deploy/gcp/main.tf`
+- **Azure**: Add a new `azurerm_key_vault_secret` in `deploy/azure/main.tf`
+
+---
+
+## 11. Priority 9 — Infrastructure Scaling
 
 ### For 1,000 Users — Single Server
 
@@ -733,7 +913,7 @@ spec:
 
 ---
 
-## 11. Deployment Commands
+## 12. Deployment Commands
 
 ### Development (current)
 
@@ -797,7 +977,7 @@ docker-compose restart glih-backend
 
 ---
 
-## 12. The 6 Numbers You Must Know Before Go-Live
+## 13. The 6 Numbers You Must Know Before Go-Live
 
 Run a load test with 100 users and record these. If any are in the red, do not go live.
 
@@ -815,8 +995,8 @@ Run a load test with 100 users and record these. If any are in the red, do not g
 ## Quick Reference — Commands Cheat Sheet
 
 ```bash
-# Install production deps
-pip install slowapi sentry-sdk[fastapi] gunicorn psycopg2-binary redis locust ruff mypy
+# Install production deps (including Langfuse)
+pip install slowapi "sentry-sdk[fastapi]" gunicorn psycopg2-binary redis locust ruff mypy langfuse
 
 # Generate secure JWT secret
 python -c "import secrets; print(secrets.token_hex(32))"
