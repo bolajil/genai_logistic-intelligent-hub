@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Zap, Truck, Bell, BarChart3,
-  FolderOpen, Settings, Shield
+  FolderOpen, Settings, Shield, History
 } from "lucide-react";
 
 const nav = [
@@ -17,6 +17,7 @@ const nav = [
   { group: "INTELLIGENCE", items: [
     { href: "/analytics",  icon: BarChart3,  label: "Analytics" },
     { href: "/documents",  icon: FolderOpen, label: "Documents" },
+    { href: "/history",    icon: History,    label: "History" },
   ]},
   { group: "SYSTEM", items: [
     { href: "/settings",   icon: Settings,  label: "Settings" },
