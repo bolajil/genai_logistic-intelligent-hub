@@ -133,7 +133,7 @@ from .auth_utils import (
     create_access_token, create_refresh_token, hash_password, verify_password,
     store_user, get_user_by_email, get_user_by_id,
     store_refresh_token, get_refresh_token_owner, delete_refresh_token,
-    get_current_user, create_admin_user,
+    get_current_user, create_admin_user, seed_sample_dispatchers,
 )
 import uuid as _uuid
 from datetime import datetime as _dt
@@ -141,6 +141,7 @@ from datetime import datetime as _dt
 @app.on_event("startup")
 async def _startup():
     create_admin_user()
+    seed_sample_dispatchers()
 
 class _AuthRegisterReq(BaseModel):
     name:     str

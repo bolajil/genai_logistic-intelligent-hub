@@ -151,6 +151,31 @@ def create_admin_user() -> None:
     store_user(admin)
     logger.info("Default admin created: admin@glih.ops (password change required on first login)")
 
+
+def seed_sample_dispatchers() -> None:
+    """Seed sample dispatcher accounts for dev/demo use. Skips any that already exist."""
+    dispatcher_password = os.getenv("GLIH_DISPATCHER_PASSWORD", "Dispatcher@2026")
+    sample_users = [
+        {"name": "Sarah Chen",   "email": "s.chen@lineage.com",  "role": "admin"},
+        {"name": "Marcus Webb",  "email": "m.webb@lineage.com",  "role": "analyst"},
+        {"name": "Priya Sharma", "email": "p.sharma@lineage.com","role": "viewer"},
+        {"name": "Locust Test",  "email": "locust@glih.test",    "role": "analyst"},
+    ]
+    for u in sample_users:
+        if get_user_by_email(u["email"]):
+            continue
+        store_user({
+            "id":                    str(uuid.uuid4()),
+            "name":                  u["name"],
+            "email":                 u["email"],
+            "hashed_password":       hash_password(dispatcher_password),
+            "role":                  u["role"],
+            "created_at":            datetime.utcnow().isoformat(),
+            "force_password_change": True,
+        })
+        logger.info(f"Seeded dispatcher: {u['email']}")
+
+
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 
 async def get_current_user(
