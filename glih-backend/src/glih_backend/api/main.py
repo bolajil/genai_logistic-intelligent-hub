@@ -30,6 +30,17 @@ if _SENTRY_DSN:
     )
 from ..config import load_config, save_config
 from ..utils import sanitize_config
+from ..history_store import (
+    save_query,
+    get_queries,
+    get_query_by_id,
+    save_agent_run,
+    get_agent_runs,
+    get_agent_run_by_id,
+    save_notification,
+    get_notifications,
+    get_history_stats,
+)
 from ..dispatchers import (
     login as admin_login,
     logout as admin_logout,
@@ -832,8 +843,9 @@ def ingest_url(req: URLIngestRequest):
 
 @app.get("/query")
 @limiter.limit(_RATE_LIMIT_QUERY)
-def query(request: Request, q: str = "hello", k: int = 4, collection: Optional[str] = None, max_distance: Optional[float] = None, style: str = "concise"):
+def query(request: Request, q: str = "hello", k: int = 4, collection: Optional[str] = None, max_distance: Optional[float] = None, style: str = "concise", current_user: dict = Depends(get_current_user)):
     logger.info(f"Query received: q='{q[:50]}...', collection={collection}, k={k}, max_distance={max_distance}, style={style}")
+    _query_start = time.time()
     try:
         coll_name = collection or _vs.collection
         fetch_k = min(k * 5, 40)
@@ -879,6 +891,7 @@ def query(request: Request, q: str = "hello", k: int = 4, collection: Optional[s
                 "distance": r.get("distance"),
                 "snippet": snippet,
             })
+        duration_ms = int((time.time() - _query_start) * 1000)
         result = {
             "query": q,
             "answer": answer,
@@ -891,7 +904,21 @@ def query(request: Request, q: str = "hello", k: int = 4, collection: Optional[s
             "max_distance": max_distance,
             "style": style,
         }
-        logger.info(f"Query completed: retrieved={len(context_snippets)}, answer_length={len(answer)}")
+        # Persist to history so dispatchers can review past queries
+        save_query(
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            query=q,
+            answer=answer,
+            citations=citations,
+            collection=coll_name,
+            provider=_llm.provider,
+            model=_llm.model,
+            k=k,
+            style=style,
+            duration_ms=duration_ms,
+        )
+        logger.info(f"Query completed: retrieved={len(context_snippets)}, answer_length={len(answer)}, duration_ms={duration_ms}")
         return result
     except Exception as e:
         logger.error(f"Query failed: {e}")
@@ -1028,7 +1055,7 @@ class AnomalyRequest(BaseModel):
     breach_duration_min: Optional[int] = 0
 
 
-def _run_anomaly_background(run_id: str, req: AnomalyRequest):
+def _run_anomaly_background(run_id: str, req: AnomalyRequest, user_id: str = "", user_email: str = ""):
     start = time.time()
     try:
         emit_progress(run_id, "init", f"AnomalyResponder started for shipment {req.shipment_id}")
@@ -1044,20 +1071,29 @@ def _run_anomaly_background(run_id: str, req: AnomalyRequest):
         result = agent.respond_to_anomaly(event, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
         emit_progress(run_id, "complete", f"AnomalyResponder finished in {duration_ms}ms", {"duration_ms": duration_ms})
-        _complete_run(run_id, result={"run_id": run_id, "agent_name": "AnomalyResponder", "status": "success", "result": result, "duration_ms": duration_ms})
+        run_result = {"run_id": run_id, "agent_name": "AnomalyResponder", "status": "success", "result": result, "duration_ms": duration_ms}
+        _complete_run(run_id, result=run_result)
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="AnomalyResponder", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=run_result, events=events, status="success", duration_ms=duration_ms)
     except Exception as e:
         logger.error(f"anomaly_agent failed: {e}")
         emit_progress(run_id, "error", str(e))
         _complete_run(run_id, error=str(e))
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="AnomalyResponder", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=None, events=events, status="error", error=str(e))
 
 
 @app.post("/agents/anomaly")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_anomaly_agent(request: Request, req: AnomalyRequest, background_tasks: BackgroundTasks):
+def run_anomaly_agent(request: Request, req: AnomalyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"AnomalyResponder queued for {req.shipment_id}")
-    background_tasks.add_task(_run_anomaly_background, run_id, req)
+    background_tasks.add_task(_run_anomaly_background, run_id, req, current_user["id"], current_user["email"])
     return {"run_id": run_id, "status": "running", "agent_name": "AnomalyResponder"}
 
 
@@ -1070,7 +1106,7 @@ class RouteRequest(BaseModel):
     constraints: Optional[Dict[str, Any]] = {}
 
 
-def _run_route_background(run_id: str, req: RouteRequest):
+def _run_route_background(run_id: str, req: RouteRequest, user_id: str = "", user_email: str = ""):
     start = time.time()
     try:
         emit_progress(run_id, "init", f"RouteAdvisor started for {req.shipment_id}")
@@ -1088,20 +1124,29 @@ def _run_route_background(run_id: str, req: RouteRequest):
         result = agent.advise_route(request_data, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
         emit_progress(run_id, "complete", f"RouteAdvisor finished in {duration_ms}ms", {"duration_ms": duration_ms})
-        _complete_run(run_id, result={"run_id": run_id, "agent_name": "RouteAdvisor", "status": "success", "result": result, "duration_ms": duration_ms})
+        run_result = {"run_id": run_id, "agent_name": "RouteAdvisor", "status": "success", "result": result, "duration_ms": duration_ms}
+        _complete_run(run_id, result=run_result)
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="RouteAdvisor", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=run_result, events=events, status="success", duration_ms=duration_ms)
     except Exception as e:
         logger.error(f"route_agent failed: {e}")
         emit_progress(run_id, "error", str(e))
         _complete_run(run_id, error=str(e))
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="RouteAdvisor", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=None, events=events, status="error", error=str(e))
 
 
 @app.post("/agents/route")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_route_agent(request: Request, req: RouteRequest, background_tasks: BackgroundTasks):
+def run_route_agent(request: Request, req: RouteRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"RouteAdvisor queued for {req.shipment_id}")
-    background_tasks.add_task(_run_route_background, run_id, req)
+    background_tasks.add_task(_run_route_background, run_id, req, current_user["id"], current_user["email"])
     return {"run_id": run_id, "status": "running", "agent_name": "RouteAdvisor"}
 
 
@@ -1115,7 +1160,7 @@ class NotifyRequest(BaseModel):
     dispatcher_title: Optional[str] = "Cold Chain Operations Dispatcher"
 
 
-def _run_notify_background(run_id: str, req: NotifyRequest):
+def _run_notify_background(run_id: str, req: NotifyRequest, user_id: str = "", user_email: str = ""):
     start = time.time()
     try:
         emit_progress(run_id, "init", f"CustomerNotifier started for {req.customer_id}")
@@ -1134,20 +1179,35 @@ def _run_notify_background(run_id: str, req: NotifyRequest):
         result = agent.notify_customer(request_data, _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
         emit_progress(run_id, "complete", f"CustomerNotifier finished in {duration_ms}ms", {"duration_ms": duration_ms})
-        _complete_run(run_id, result={"run_id": run_id, "agent_name": "CustomerNotifier", "status": "success", "result": result, "duration_ms": duration_ms})
+        run_result = {"run_id": run_id, "agent_name": "CustomerNotifier", "status": "success", "result": result, "duration_ms": duration_ms}
+        _complete_run(run_id, result=run_result)
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="CustomerNotifier", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=run_result, events=events, status="success", duration_ms=duration_ms)
+        # Also save to notification audit trail
+        message = (result or {}).get("message", "") if isinstance(result, dict) else str(result or "")
+        save_notification(run_id=run_id, shipment_id=req.shipment_id, customer_id=req.customer_id,
+                          notification_type=req.notification_type, severity=req.severity or "low",
+                          message=message, dispatcher_name=req.dispatcher_name or "",
+                          dispatcher_title=req.dispatcher_title or "", user_id=user_id, user_email=user_email)
     except Exception as e:
         logger.error(f"notify_agent failed: {e}")
         emit_progress(run_id, "error", str(e))
         _complete_run(run_id, error=str(e))
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="CustomerNotifier", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=None, events=events, status="error", error=str(e))
 
 
 @app.post("/agents/notify")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_notify_agent(request: Request, req: NotifyRequest, background_tasks: BackgroundTasks):
+def run_notify_agent(request: Request, req: NotifyRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"CustomerNotifier queued for {req.customer_id}")
-    background_tasks.add_task(_run_notify_background, run_id, req)
+    background_tasks.add_task(_run_notify_background, run_id, req, current_user["id"], current_user["email"])
     return {"run_id": run_id, "status": "running", "agent_name": "CustomerNotifier"}
 
 
@@ -1156,7 +1216,7 @@ class OpsSummaryRequest(BaseModel):
     facility: Optional[str] = "all"
 
 
-def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest):
+def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest, user_id: str = "", user_email: str = ""):
     start = time.time()
     try:
         emit_progress(run_id, "init", f"OpsSummarizer started — window: {req.time_window}, facility: {req.facility}")
@@ -1165,21 +1225,132 @@ def _run_ops_summary_background(run_id: str, req: OpsSummaryRequest):
         result = agent.summarize_ops(req.time_window, _make_vector_search_fn(run_id), _make_llm_fn(run_id))
         duration_ms = int((time.time() - start) * 1000)
         emit_progress(run_id, "complete", f"OpsSummarizer finished in {duration_ms}ms", {"duration_ms": duration_ms})
-        _complete_run(run_id, result={"run_id": run_id, "agent_name": "OpsSummarizer", "status": "success", "result": result, "duration_ms": duration_ms})
+        run_result = {"run_id": run_id, "agent_name": "OpsSummarizer", "status": "success", "result": result, "duration_ms": duration_ms}
+        _complete_run(run_id, result=run_result)
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="OpsSummarizer", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=run_result, events=events, status="success", duration_ms=duration_ms)
     except Exception as e:
         logger.error(f"ops_summary_agent failed: {e}")
         emit_progress(run_id, "error", str(e))
         _complete_run(run_id, error=str(e))
+        with _progress_lock:
+            events = list(_progress_store.get(run_id, {}).get("events", []))
+        save_agent_run(run_id=run_id, agent_name="OpsSummarizer", user_id=user_id, user_email=user_email,
+                       input_data=req.dict(), result=None, events=events, status="error", error=str(e))
 
 
 @app.post("/agents/ops-summary")
 @limiter.limit(_RATE_LIMIT_AGENTS)
-def run_ops_summary_agent(request: Request, req: OpsSummaryRequest, background_tasks: BackgroundTasks):
+def run_ops_summary_agent(request: Request, req: OpsSummaryRequest, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     run_id = str(uuid.uuid4())
     _init_run(run_id)
     emit_progress(run_id, "queued", f"OpsSummarizer queued — {req.time_window} window")
-    background_tasks.add_task(_run_ops_summary_background, run_id, req)
+    background_tasks.add_task(_run_ops_summary_background, run_id, req, current_user["id"], current_user["email"])
     return {"run_id": run_id, "status": "running", "agent_name": "OpsSummarizer"}
+
+
+# ===========================================================================
+# History — Query & Agent Run Retrieval
+# ===========================================================================
+
+@app.get("/history/queries")
+def history_queries(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Retrieve the authenticated dispatcher's query history (newest first).
+
+    Admins see all users' queries by passing ?all=true (not yet implemented — returns own history).
+    Each record contains: query text, answer, citations, provider, model, timestamp.
+    """
+    is_admin = current_user.get("role") == "admin"
+    uid = None if is_admin else current_user["id"]
+    records = get_queries(user_id=uid, limit=limit, offset=offset)
+    return {"queries": records, "count": len(records), "limit": limit, "offset": offset}
+
+
+@app.get("/history/queries/{record_id}")
+def history_query_detail(record_id: str, current_user: dict = Depends(get_current_user)):
+    """Retrieve a single query record by ID, including full answer and citations."""
+    record = get_query_by_id(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Query record not found")
+    if current_user.get("role") != "admin" and record.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return record
+
+
+@app.get("/history/agents")
+def history_agent_runs(
+    agent_name: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Retrieve agent run history (newest first).
+
+    Filter by agent: ?agent_name=AnomalyResponder
+    Available agents: AnomalyResponder, RouteAdvisor, CustomerNotifier, OpsSummarizer
+
+    Each record contains: full input, result, all progress events, status, duration.
+    Admins see all users; dispatchers see only their own runs.
+    """
+    is_admin = current_user.get("role") == "admin"
+    uid = None if is_admin else current_user["id"]
+    records = get_agent_runs(user_id=uid, agent_name=agent_name, limit=limit, offset=offset)
+    return {"agent_runs": records, "count": len(records), "limit": limit, "offset": offset}
+
+
+@app.get("/history/agents/{run_id}")
+def history_agent_run_detail(run_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Retrieve a single agent run by run_id.
+
+    Returns the complete record: input data, all progress events, full result, duration.
+    This is the full audit trail for a single agent execution.
+    """
+    record = get_agent_run_by_id(run_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    if current_user.get("role") != "admin" and record.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return record
+
+
+@app.get("/history/notifications")
+def history_notifications(
+    shipment_id: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Retrieve notification audit trail (newest first).
+
+    Filter by shipment: ?shipment_id=SHP-001
+    Each record contains: message text, customer, severity, dispatcher, timestamp.
+    Admins see all; dispatchers see only their own notifications.
+    """
+    is_admin = current_user.get("role") == "admin"
+    uid = None if is_admin else current_user["id"]
+    records = get_notifications(user_id=uid, shipment_id=shipment_id, limit=limit, offset=offset)
+    return {"notifications": records, "count": len(records), "limit": limit, "offset": offset}
+
+
+@app.get("/history/stats")
+def history_stats(current_user: dict = Depends(get_current_user)):
+    """
+    Admin dashboard stats: total queries, agent runs, notifications, per-agent breakdown.
+    Requires admin role.
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return get_history_stats()
 
 
 # ===========================================================================

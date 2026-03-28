@@ -992,6 +992,144 @@ Run a load test with 100 users and record these. If any are in the red, do not g
 
 ---
 
+## Priority 10 — Conversation & Agent History
+
+### Why This Matters
+
+Every query a dispatcher makes and every agent run must be retrievable. Without this:
+- There is no audit trail if a dispatcher questions what GLIH told them
+- Compliance audits (FSMA, food safety) cannot be satisfied
+- You can't replay an agent run to debug a bad decision
+- There's no data to improve the system over time
+
+### What Was Built
+
+**New module:** `glih-backend/src/glih_backend/history_store.py`
+
+Stores 3 types of records to `data/glih_history.json`:
+
+| Record Type | What It Contains | Capped At |
+|-------------|-----------------|-----------|
+| `queries` | User, query text, full answer, citations, provider, model, duration | 10,000 records |
+| `agent_runs` | Agent name, full input, result, all progress events, status, duration | 10,000 records |
+| `notifications` | Shipment ID, customer ID, message text, dispatcher, severity | 10,000 records |
+
+### New API Endpoints
+
+All endpoints require a valid JWT Bearer token.
+
+```bash
+# Get your query history (last 50)
+GET /history/queries
+
+# Get a specific query with full citations
+GET /history/queries/{record_id}
+
+# Get agent run history (all agents)
+GET /history/agents
+
+# Filter by agent type
+GET /history/agents?agent_name=AnomalyResponder
+
+# Get full detail of one agent run (input + all events + result)
+GET /history/agents/{run_id}
+
+# Get notification audit trail
+GET /history/notifications
+
+# Filter by shipment
+GET /history/notifications?shipment_id=SHP-001
+
+# Admin only: aggregate stats
+GET /history/stats
+```
+
+**Example response — `GET /history/agents/{run_id}`:**
+```json
+{
+  "run_id": "abc123",
+  "agent_name": "AnomalyResponder",
+  "user_email": "dispatcher@lineage.com",
+  "input": {
+    "shipment_id": "SHP-2026-001",
+    "temperature_c": 8.5,
+    "product_type": "Dairy",
+    "threshold_max_c": 4.0
+  },
+  "events": [
+    {"step": "init",     "message": "AnomalyResponder started for shipment SHP-2026-001", "ts": "..."},
+    {"step": "retrieval","message": "Searching 'lineage-sops' → \"temperature breach dairy\"", "ts": "..."},
+    {"step": "llm_call", "message": "Calling openai/gpt-4o (1240 char prompt)…", "ts": "..."},
+    {"step": "complete", "message": "AnomalyResponder finished in 3421ms", "ts": "..."}
+  ],
+  "result": { "recommendation": "...", "actions": [...] },
+  "status": "success",
+  "duration_ms": 3421,
+  "timestamp": "2026-03-28T14:22:11.432100"
+}
+```
+
+### Access Control
+
+| Role | Query History | Agent Runs | Notifications | Stats |
+|------|--------------|------------|---------------|-------|
+| Dispatcher | Own records only | Own runs only | Own notifications | ❌ |
+| Admin | All users | All users | All users | ✅ |
+
+### Migration to PostgreSQL (When Ready)
+
+The history store uses a JSON file today. To migrate to PostgreSQL, replace only the `_load()` and `_save()` functions in `history_store.py` with SQLAlchemy session calls. All endpoint code stays identical.
+
+```python
+# Example SQL schema (PostgreSQL)
+CREATE TABLE query_history (
+    id          UUID PRIMARY KEY,
+    user_id     UUID NOT NULL,
+    user_email  TEXT NOT NULL,
+    query       TEXT NOT NULL,
+    answer      TEXT NOT NULL,
+    citations   JSONB,
+    collection  TEXT,
+    provider    TEXT,
+    model       TEXT,
+    k           INT,
+    style       TEXT,
+    duration_ms INT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE agent_run_history (
+    run_id      UUID PRIMARY KEY,
+    agent_name  TEXT NOT NULL,
+    user_id     UUID NOT NULL,
+    user_email  TEXT NOT NULL,
+    input_data  JSONB,
+    result      JSONB,
+    events      JSONB,
+    status      TEXT,
+    duration_ms INT,
+    error       TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE notification_history (
+    id                 UUID PRIMARY KEY,
+    run_id             UUID,
+    shipment_id        TEXT NOT NULL,
+    customer_id        TEXT NOT NULL,
+    notification_type  TEXT,
+    severity           TEXT,
+    message            TEXT,
+    dispatcher_name    TEXT,
+    user_id            UUID,
+    user_email         TEXT,
+    status             TEXT DEFAULT 'sent',
+    created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
 ## Quick Reference — Commands Cheat Sheet
 
 ```bash
