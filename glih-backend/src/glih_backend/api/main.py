@@ -1483,12 +1483,30 @@ def list_dispatchers():
 
 @app.post("/dispatchers")
 def add_dispatcher(req: DispatcherCreate, _: dict = Depends(require_permission("admin:users"))):
-    """Create a new dispatcher account."""
+    """Create a new dispatcher account in the dispatcher store AND the JWT auth store."""
+    # Check for duplicate email in the JWT store before creating anything
+    if get_user_by_email(req.email):
+        raise HTTPException(status_code=400, detail=f"Email '{req.email}' is already registered")
     try:
         dispatcher = create_dispatcher(req)
-        return {"status": "created", "dispatcher": dispatcher}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Also create a JWT login account so the dispatcher can log in
+    import uuid as _uuid
+    jwt_user = {
+        "id": str(_uuid.uuid4()),
+        "name": req.name,
+        "email": req.email,
+        "role": "analyst",
+        "hashed_password": hash_password(req.password),
+        "force_password_change": True,
+        "created_at": dispatcher.get("id", ""),
+    }
+    store_user(jwt_user)
+    logger.info(f"JWT login account created for new dispatcher: {req.email}")
+
+    return {"status": "created", "dispatcher": dispatcher}
 
 
 # ===========================================================================
