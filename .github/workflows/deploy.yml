@@ -1,0 +1,107 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/glih
+
+jobs:
+  docker-build-push:
+    name: Build & push Docker images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./glih-backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.tag.outputs.TAG }}
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./glih-frontend-next
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.tag.outputs.TAG }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api
+
+  deploy-k8s:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Apply ConfigMap & Secrets
+        run: |
+          # Substitute env vars into secrets template and apply
+          export OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+          export ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+          export MISTRAL_API_KEY="${{ secrets.MISTRAL_API_KEY }}"
+          export POSTGRES_USER="${{ secrets.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+          export GPS_TRACE_API_TOKEN="${{ secrets.GPS_TRACE_API_TOKEN }}"
+          export OPENWEATHERMAP_API_KEY="${{ secrets.OPENWEATHERMAP_API_KEY }}"
+          export IOT_API_KEY="${{ secrets.IOT_API_KEY }}"
+          export TRAFFIC_API_KEY="${{ secrets.TRAFFIC_API_KEY }}"
+          export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+          export GLIH_ADMIN_PASSWORD="${{ secrets.GLIH_ADMIN_PASSWORD }}"
+          export GLIH_DISPATCHER_PASSWORD="${{ secrets.GLIH_DISPATCHER_PASSWORD }}"
+          envsubst < deploy/k8s/secrets.yaml | kubectl apply -f -
+          kubectl apply -f deploy/k8s/configmap.yaml
+
+      - name: Deploy workloads
+        run: |
+          TAG=latest
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          # Update image tags in manifests and apply
+          find deploy/k8s -name "*.yaml" ! -name "secrets.yaml" | xargs kubectl apply -f
+          kubectl set image deployment/glih-backend \
+            backend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${TAG} \
+            -n glih --ignore-not-found
+          kubectl set image deployment/glih-frontend \
+            frontend=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${TAG} \
+            -n glih --ignore-not-found
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/glih-backend -n glih --timeout=120s || true
+          kubectl rollout status deployment/glih-frontend -n glih --timeout=120s || true
