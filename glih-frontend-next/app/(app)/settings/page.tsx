@@ -2,8 +2,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { usePermissions } from "@/hooks/usePermissions";
-
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9001";
+import { BASE, authHeaders } from "@/lib/api";
 
 type Tab = "connectors" | "api-keys" | "dispatchers" | "llm" | "advanced";
 
@@ -96,9 +95,11 @@ export default function SettingsPage() {
   const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [showAddDispatcher, setShowAddDispatcher] = useState(false);
   const [newDispatcher, setNewDispatcher] = useState({
-    username: "", name: "", title: "Operations Dispatcher", email: "", facility: "Chicago", shift: "Day"
+    username: "", name: "", title: "Operations Dispatcher", email: "", password: "", facility: "Chicago", shift: "Day"
   });
   const [addingDispatcher, setAddingDispatcher] = useState(false);
+  const [dispatcherMsg, setDispatcherMsg] = useState<string | null>(null);
+  const [dispatcherErr, setDispatcherErr] = useState<string | null>(null);
 
   // Fetch MCP settings and dispatchers on mount
   useEffect(() => {
@@ -120,19 +121,22 @@ export default function SettingsPage() {
 
   async function addDispatcher() {
     setAddingDispatcher(true);
+    setDispatcherMsg(null);
+    setDispatcherErr(null);
     try {
       const res = await fetch(`${BASE}/dispatchers`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newDispatcher, password: "lineage123" }),
+        headers: authHeaders(),
+        body: JSON.stringify(newDispatcher),
       });
-      if (res.ok) {
-        await fetchDispatchers();
-        setNewDispatcher({ username: "", name: "", title: "Operations Dispatcher", email: "", facility: "Chicago", shift: "Day" });
-        setShowAddDispatcher(false);
-      }
-    } catch (e) {
-      console.error("Failed to add dispatcher:", e);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      await fetchDispatchers();
+      setDispatcherMsg(`✓ Dispatcher "${newDispatcher.name}" added. They can log in with ${newDispatcher.email} and must change password on first login.`);
+      setNewDispatcher({ username: "", name: "", title: "Operations Dispatcher", email: "", password: "", facility: "Chicago", shift: "Day" });
+      setShowAddDispatcher(false);
+    } catch (e: any) {
+      setDispatcherErr(`✗ ${e.message}`);
     } finally {
       setAddingDispatcher(false);
     }
@@ -435,6 +439,18 @@ export default function SettingsPage() {
                     </button>
                   </div>
 
+                  {/* Success / Error banners */}
+                  {dispatcherMsg && (
+                    <div style={{ background: "#052e16", border: "1px solid #14532d", borderRadius: 6, padding: "10px 14px", color: "#4ade80", fontSize: "0.75rem", marginBottom: 14 }}>
+                      {dispatcherMsg}
+                    </div>
+                  )}
+                  {dispatcherErr && (
+                    <div style={{ background: "#1a0505", border: "1px solid #7f1d1d", borderRadius: 6, padding: "10px 14px", color: "#f87171", fontSize: "0.75rem", marginBottom: 14 }}>
+                      {dispatcherErr}
+                    </div>
+                  )}
+
                   {/* Add Dispatcher Form */}
                   {showAddDispatcher && (
                     <div style={{ marginBottom: 20, padding: 16, background: "var(--bg-secondary)", borderRadius: 8, border: "1px solid var(--teal)" }}>
@@ -481,6 +497,16 @@ export default function SettingsPage() {
                           />
                         </div>
                         <div>
+                          <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Temporary Password</label>
+                          <input
+                            type="password"
+                            value={newDispatcher.password}
+                            onChange={(e) => setNewDispatcher(p => ({ ...p, password: e.target.value }))}
+                            placeholder="Min 8 characters"
+                            style={{ width: "100%", padding: "8px 12px", background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text-primary)", fontSize: "0.8rem" }}
+                          />
+                        </div>
+                        <div>
                           <label style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Facility</label>
                           <select
                             value={newDispatcher.facility}
@@ -508,7 +534,7 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={addDispatcher}
-                        disabled={addingDispatcher || !newDispatcher.username || !newDispatcher.name || !newDispatcher.email}
+                        disabled={addingDispatcher || !newDispatcher.username || !newDispatcher.name || !newDispatcher.email || newDispatcher.password.length < 8}
                         className="btn-primary"
                         style={{ marginTop: 16, fontSize: "0.75rem" }}
                       >
