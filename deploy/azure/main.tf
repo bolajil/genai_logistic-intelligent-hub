@@ -223,10 +223,28 @@ resource "azurerm_key_vault_secret" "sentry_dsn" {
   name         = "glih-sentry-dsn"
   value        = "REPLACE_WITH_SENTRY_DSN"
   key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
 
-  lifecycle {
-    ignore_changes = [value]
-  }
+resource "azurerm_key_vault_secret" "glih_admin_password" {
+  name         = "glih-admin-password"
+  value        = "REPLACE_WITH_STRONG_PASSWORD"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "glih_dispatcher_password" {
+  name         = "glih-dispatcher-password"
+  value        = "REPLACE_WITH_STRONG_PASSWORD"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "glih_dispatcher_admin_password" {
+  name         = "glih-dispatcher-admin-password"
+  value        = "REPLACE_WITH_STRONG_PASSWORD"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
 }
 
 # AKS managed identity access to Key Vault

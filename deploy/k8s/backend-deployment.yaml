@@ -6,7 +6,7 @@ metadata:
   labels:
     app: glih-backend
 spec:
-  replicas: 2
+  replicas: 1  # File-backed stores (glih_users.json, glih_dispatchers.json) require single replica with ReadWriteOnce PVC
   selector:
     matchLabels:
       app: glih-backend

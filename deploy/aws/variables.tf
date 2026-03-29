@@ -50,6 +50,12 @@ variable "glih_dispatcher_password" {
   sensitive   = true
 }
 
+variable "dispatcher_admin_password" {
+  description = "Password for legacy dispatcher admin login (DISPATCHER_ADMIN_PASSWORD)"
+  type        = string
+  sensitive   = true
+}
+
 variable "jwt_secret" {
   description = "HS256 JWT signing secret — must be at least 32 characters"
   type        = string

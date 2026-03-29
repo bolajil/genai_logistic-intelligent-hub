@@ -14,9 +14,11 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Data
+# Data — runtime files (user accounts, dispatcher profiles, vector store)
 /data/*
 !data/.gitkeep
+glih-backend/data/
+glih-backend/src/data/
 
 # Streamlit
 .streamlit/

@@ -205,6 +205,39 @@ resource "google_secret_manager_secret" "glih_sentry" {
   }
 }
 
+resource "google_secret_manager_secret" "glih_admin_password" {
+  secret_id = "glih-admin-password-${var.environment}"
+  replication { auto {} }
+}
+
+resource "google_secret_manager_secret_version" "glih_admin_password" {
+  secret      = google_secret_manager_secret.glih_admin_password.id
+  secret_data = "REPLACE_WITH_STRONG_PASSWORD"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "glih_dispatcher_password" {
+  secret_id = "glih-dispatcher-password-${var.environment}"
+  replication { auto {} }
+}
+
+resource "google_secret_manager_secret_version" "glih_dispatcher_password" {
+  secret      = google_secret_manager_secret.glih_dispatcher_password.id
+  secret_data = "REPLACE_WITH_STRONG_PASSWORD"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "glih_dispatcher_admin_password" {
+  secret_id = "glih-dispatcher-admin-password-${var.environment}"
+  replication { auto {} }
+}
+
+resource "google_secret_manager_secret_version" "glih_dispatcher_admin_password" {
+  secret      = google_secret_manager_secret.glih_dispatcher_admin_password.id
+  secret_data = "REPLACE_WITH_STRONG_PASSWORD"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
 # Service account for GKE workloads to access secrets
 resource "google_service_account" "glih_backend" {
   account_id   = "glih-backend-${var.environment}"
