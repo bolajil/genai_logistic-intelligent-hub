@@ -64,7 +64,33 @@ const DEFAULT_CONNECTORS: MCPConnector[] = [
 export default function SettingsPage() {
   const { can, role } = usePermissions();
   const [tab, setTab] = useState<Tab>("connectors");
+  const [connectors, setConnectors] = useState<MCPConnector[]>(DEFAULT_CONNECTORS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { status: string; message: string }>>({});
+  const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
+  const [llm, setLlm] = useState("openai/gpt-4o");
+  const [saved, setSaved] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // Dispatcher management state
+  const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
+  const [showAddDispatcher, setShowAddDispatcher] = useState(false);
+  const [newDispatcher, setNewDispatcher] = useState({
+    username: "", name: "", title: "Operations Dispatcher", email: "", password: "", facility: "Chicago", shift: "Day"
+  });
+  const [addingDispatcher, setAddingDispatcher] = useState(false);
+  const [dispatcherMsg, setDispatcherMsg] = useState<string | null>(null);
+  const [dispatcherErr, setDispatcherErr] = useState<string | null>(null);
+
+  // Fetch MCP settings and dispatchers on mount
+  useEffect(() => {
+    fetchMCPSettings();
+    fetchDispatchers();
+  }, []);
+
+  // Access guard — all hooks must be called before this return
   if (!can("settings:view")) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -81,31 +107,6 @@ export default function SettingsPage() {
       </div>
     );
   }
-  const [connectors, setConnectors] = useState<MCPConnector[]>(DEFAULT_CONNECTORS);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { status: string; message: string }>>({});
-  const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
-  const [llm, setLlm] = useState("openai/gpt-4o");
-  const [saved, setSaved] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  
-  // Dispatcher management state
-  const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
-  const [showAddDispatcher, setShowAddDispatcher] = useState(false);
-  const [newDispatcher, setNewDispatcher] = useState({
-    username: "", name: "", title: "Operations Dispatcher", email: "", password: "", facility: "Chicago", shift: "Day"
-  });
-  const [addingDispatcher, setAddingDispatcher] = useState(false);
-  const [dispatcherMsg, setDispatcherMsg] = useState<string | null>(null);
-  const [dispatcherErr, setDispatcherErr] = useState<string | null>(null);
-
-  // Fetch MCP settings and dispatchers on mount
-  useEffect(() => {
-    fetchMCPSettings();
-    fetchDispatchers();
-  }, []);
 
   async function fetchDispatchers() {
     try {
