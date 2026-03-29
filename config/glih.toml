@@ -198,6 +198,80 @@ provider = ""  # google | here | mapbox
 api_key = ""
 description = "Real-time traffic for ETA optimization"
 
+[mcp.connectors.samsara_eld]
+# Samsara ELD — Electronic Logging Device / Hours-of-Service compliance
+# Get API key from https://cloud.samsara.com/settings/api-tokens
+enabled = true
+api_key = ""  # Leave empty for demo mode
+description = "ELD compliance, driver HOS status, violation alerts, driver logs"
+
+[mcp.connectors.dat_load_board]
+# DAT Load Board — carrier/broker load matching and rate forecasting
+# Get credentials from https://www.dat.com/solutions/power-broker
+enabled = true
+username = ""  # Leave empty for demo mode
+password = ""
+description = "Available loads, lane rate forecasts, truck posting for backhaul"
+
+[mcp.connectors.tms]
+# TMS Integration — McLeod Software / Oracle Transportation Management
+enabled = true
+provider = ""  # mcleod | oracle | mercurygate
+endpoint = ""  # e.g., https://tms.lineage.com/api
+api_key = ""   # Leave empty for demo mode
+description = "Shipment orders, delivery status updates, dispatch integration"
+
+[mcp.connectors.geofence]
+# Geofencing & POI — Google Maps / HERE Platform
+# Get API key from https://developers.google.com/maps or https://platform.here.com
+enabled = true
+provider = "here"  # google | here | mapbox
+api_key = ""  # Leave empty for demo mode
+description = "Geofence alerts, nearby fuel stops & rest areas, POI lookup"
+
+[mcp.connectors.usda_compliance]
+# USDA/FDA Compliance — public food safety APIs (no key required)
+# Uses FDA Enforcement Reports API — always live
+enabled = true
+description = "HACCP compliance checks, FDA recall alerts, FSMA temperature log verification"
+
+[mcp.connectors.eia_fuel]
+# EIA Fuel Prices — U.S. Energy Information Administration (free public API)
+# Optional API key from https://www.eia.gov/opendata/ for higher rate limits
+enabled = true
+api_key = ""  # Optional — public API works without key
+description = "National/regional diesel prices, fuel surcharge calculation, price trend analysis"
+
+[mcp.connectors.predictive_maintenance]
+# Predictive Maintenance — vehicle health monitoring via Samsara or Fleet Complete
+enabled = true
+provider = "samsara"  # samsara | fleet_complete | geotab
+api_key = ""  # Leave empty for demo mode (can share Samsara key from samsara_eld)
+description = "Vehicle health scores, fault codes, oil/brake/tire alerts, service scheduling"
+
+[mcp.connectors.port_status]
+# Port & Intermodal Status — MarineTraffic / Portcast API
+# Get API key from https://www.marinetraffic.com/en/online-services/plans
+enabled = true
+api_key = ""  # Leave empty for demo mode
+description = "Port congestion levels, vessel tracking, container status, intermodal routing"
+
+[mcp.connectors.twilio_pod]
+# Twilio — Customer notifications & Proof of Delivery
+# Get credentials from https://console.twilio.com
+enabled = true
+account_sid = ""  # Leave empty for demo mode
+auth_token = ""
+from_number = ""  # Twilio phone number e.g., +15551234567
+description = "Delivery ETA alerts via SMS, POD confirmation texts, customer status updates"
+
+[mcp.connectors.insurance_claims]
+# Insurance & Claims — Riskonnect / custom insurance API
+enabled = true
+endpoint = ""  # Leave empty for demo mode
+api_key = ""
+description = "Cargo claim filing, claim status tracking, coverage summary, policy management"
+
 [[mcp.servers]]
 name = "lineage-wms"
 url = "http://localhost:8080"

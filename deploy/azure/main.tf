@@ -307,3 +307,62 @@ output "backend_identity_client_id" {
   value       = azurerm_user_assigned_identity.glih_backend.client_id
   description = "Assign to AKS backend pod via azure.workload.identity/client-id annotation"
 }
+
+# ============================================================
+# Phase 1-3 MCP connector Key Vault secrets
+# ============================================================
+resource "azurerm_key_vault_secret" "samsara_api_key" {
+  name         = "glih-samsara-api-key"
+  value        = "REPLACE_WITH_SAMSARA_API_KEY"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "dat_username" {
+  name         = "glih-dat-username"
+  value        = "REPLACE_WITH_DAT_USERNAME"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "dat_password" {
+  name         = "glih-dat-password"
+  value        = "REPLACE_WITH_DAT_PASSWORD"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "tms_api_key" {
+  name         = "glih-tms-api-key"
+  value        = "REPLACE_WITH_TMS_API_KEY"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "geofence_api_key" {
+  name         = "glih-geofence-api-key"
+  value        = "REPLACE_WITH_GEOFENCE_API_KEY"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "twilio_account_sid" {
+  name         = "glih-twilio-account-sid"
+  value        = "REPLACE_WITH_TWILIO_ACCOUNT_SID"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "twilio_auth_token" {
+  name         = "glih-twilio-auth-token"
+  value        = "REPLACE_WITH_TWILIO_AUTH_TOKEN"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "azurerm_key_vault_secret" "insurance_api_key" {
+  name         = "glih-insurance-api-key"
+  value        = "REPLACE_WITH_INSURANCE_API_KEY"
+  key_vault_id = azurerm_key_vault.glih.id
+  lifecycle { ignore_changes = [value] }
+}

@@ -284,3 +284,66 @@ output "jwt_secret_name" {
   value       = google_secret_manager_secret.glih_jwt.name
   description = "Reference in GKE pod spec as environment variable from Secret Manager"
 }
+
+# ============================================================
+# Phase 1-3 MCP connector secrets
+# ============================================================
+resource "google_secret_manager_secret" "samsara_api_key" {
+  secret_id = "glih-samsara-api-key-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "samsara_api_key" {
+  secret      = google_secret_manager_secret.samsara_api_key.id
+  secret_data = "REPLACE_WITH_SAMSARA_API_KEY"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "dat_credentials" {
+  secret_id = "glih-dat-credentials-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "dat_credentials" {
+  secret      = google_secret_manager_secret.dat_credentials.id
+  secret_data = "REPLACE_WITH_DAT_USERNAME:DAT_PASSWORD"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "tms_api_key" {
+  secret_id = "glih-tms-api-key-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "tms_api_key" {
+  secret      = google_secret_manager_secret.tms_api_key.id
+  secret_data = "REPLACE_WITH_TMS_API_KEY"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "geofence_api_key" {
+  secret_id = "glih-geofence-api-key-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "geofence_api_key" {
+  secret      = google_secret_manager_secret.geofence_api_key.id
+  secret_data = "REPLACE_WITH_GEOFENCE_API_KEY"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "twilio_credentials" {
+  secret_id = "glih-twilio-credentials-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "twilio_credentials" {
+  secret      = google_secret_manager_secret.twilio_credentials.id
+  secret_data = "REPLACE_WITH_TWILIO_ACCOUNT_SID:AUTH_TOKEN"
+  lifecycle { ignore_changes = [secret_data] }
+}
+
+resource "google_secret_manager_secret" "insurance_api_key" {
+  secret_id = "glih-insurance-api-key-${var.environment}"
+  replication { auto {} }
+}
+resource "google_secret_manager_secret_version" "insurance_api_key" {
+  secret      = google_secret_manager_secret.insurance_api_key.id
+  secret_data = "REPLACE_WITH_INSURANCE_API_KEY"
+  lifecycle { ignore_changes = [secret_data] }
+}

@@ -51,6 +51,42 @@ const CONNECTOR_FIELDS: ConnectorFields = {
     { label: "Provider", field: "provider", type: "text", placeholder: "google | here | mapbox" },
     { label: "API Key", field: "api_key", type: "password", placeholder: "API key for selected provider" },
   ],
+  samsara_eld: [
+    { label: "API Key", field: "api_key", type: "password", placeholder: "Get from cloud.samsara.com/settings/api-tokens" },
+  ],
+  dat_load_board: [
+    { label: "Username", field: "username", type: "text", placeholder: "DAT Power Broker username" },
+    { label: "Password", field: "password", type: "password", placeholder: "DAT Power Broker password" },
+  ],
+  tms: [
+    { label: "Provider", field: "provider", type: "text", placeholder: "mcleod | oracle | mercurygate" },
+    { label: "Endpoint", field: "endpoint", type: "text", placeholder: "https://tms.yourcompany.com/api" },
+    { label: "API Key", field: "api_key", type: "password", placeholder: "TMS REST API key" },
+  ],
+  geofence: [
+    { label: "Provider", field: "provider", type: "text", placeholder: "google | here | mapbox" },
+    { label: "API Key", field: "api_key", type: "password", placeholder: "Maps platform API key" },
+  ],
+  usda_compliance: [],
+  eia_fuel: [
+    { label: "API Key (optional)", field: "api_key", type: "password", placeholder: "EIA API key — free at eia.gov/opendata" },
+  ],
+  predictive_maintenance: [
+    { label: "Provider", field: "provider", type: "text", placeholder: "samsara | fleet_complete | geotab" },
+    { label: "API Key", field: "api_key", type: "password", placeholder: "Fleet management API key" },
+  ],
+  port_status: [
+    { label: "API Key", field: "api_key", type: "password", placeholder: "MarineTraffic or Portcast API key" },
+  ],
+  twilio_pod: [
+    { label: "Account SID", field: "account_sid", type: "text", placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { label: "Auth Token", field: "auth_token", type: "password", placeholder: "Twilio auth token" },
+    { label: "From Number", field: "from_number", type: "text", placeholder: "+15551234567" },
+  ],
+  insurance_claims: [
+    { label: "Endpoint", field: "endpoint", type: "text", placeholder: "https://insurance-api.yourcompany.com" },
+    { label: "API Key", field: "api_key", type: "password", placeholder: "Insurance API key" },
+  ],
 };
 
 // Default connectors for fallback when backend unavailable
@@ -59,6 +95,16 @@ const DEFAULT_CONNECTORS: MCPConnector[] = [
   { id: "openweathermap", name: "OpenWeatherMap (Weather)", enabled: true, configured: false, mode: "demo", description: "Weather forecasts for route planning and spoilage risk", endpoint: "" },
   { id: "iot", name: "Lineage IoT Sensors", enabled: true, configured: false, mode: "demo", description: "Temperature sensors, door status, humidity monitoring", endpoint: "" },
   { id: "traffic", name: "Traffic & Routing", enabled: false, configured: false, mode: "demo", description: "Real-time traffic for ETA optimization", endpoint: "" },
+  { id: "samsara_eld", name: "Samsara ELD (HOS Compliance)", enabled: true, configured: false, mode: "demo", description: "ELD compliance, driver HOS status, violation alerts", endpoint: "https://api.samsara.com" },
+  { id: "dat_load_board", name: "DAT Load Board", enabled: true, configured: false, mode: "demo", description: "Available loads, lane rate forecasts, backhaul posting", endpoint: "https://api.dat.com" },
+  { id: "tms", name: "TMS Integration (McLeod/Oracle)", enabled: true, configured: false, mode: "demo", description: "Shipment orders, delivery status, dispatch integration", endpoint: "" },
+  { id: "geofence", name: "Geofence & POI (HERE/Google)", enabled: true, configured: false, mode: "demo", description: "Geofence alerts, nearby fuel stops, POI lookup", endpoint: "" },
+  { id: "usda_compliance", name: "USDA/FDA Compliance", enabled: true, configured: true, mode: "real", description: "HACCP checks, FDA recall alerts, FSMA compliance (free API)", endpoint: "https://api.fda.gov" },
+  { id: "eia_fuel", name: "EIA Fuel Prices", enabled: true, configured: true, mode: "real", description: "National/regional diesel prices, fuel surcharge calculator (free API)", endpoint: "https://api.eia.gov" },
+  { id: "predictive_maintenance", name: "Predictive Maintenance", enabled: true, configured: false, mode: "demo", description: "Vehicle health scores, fault codes, service scheduling", endpoint: "" },
+  { id: "port_status", name: "Port & Intermodal Status", enabled: true, configured: false, mode: "demo", description: "Port congestion, vessel tracking, intermodal routing", endpoint: "" },
+  { id: "twilio_pod", name: "Twilio POD & Notifications", enabled: true, configured: false, mode: "demo", description: "SMS delivery alerts, proof of delivery confirmation", endpoint: "https://api.twilio.com" },
+  { id: "insurance_claims", name: "Insurance & Claims", enabled: true, configured: false, mode: "demo", description: "Cargo claim filing, claim status, coverage summary", endpoint: "" },
 ];
 
 export default function SettingsPage() {

@@ -1783,6 +1783,143 @@ async def get_facility_status(facility: str):
 
 
 # ===========================================================================
+# MCP Phase 1-3 Connector Endpoints
+# ===========================================================================
+
+@app.get("/mcp/eld/hos")
+async def mcp_eld_hos(driver_id: str = "all"):
+    """Get driver Hours-of-Service status from Samsara ELD"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_driver_hos_status", {"driver_id": driver_id})
+
+
+@app.get("/mcp/eld/violations")
+async def mcp_eld_violations():
+    """Get ELD violations across fleet"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_eld_violations", {})
+
+
+@app.get("/mcp/loadboard/search")
+async def mcp_loadboard_search(origin: str = "Chicago", destination: str = "", equipment: str = "Reefer"):
+    """Search available loads on DAT load board"""
+    server = await _get_mcp_server()
+    return await server.call_tool("search_available_loads", {"origin_city": origin, "destination_city": destination, "equipment": equipment})
+
+
+@app.get("/mcp/loadboard/rates")
+async def mcp_loadboard_rates(origin: str, destination: str):
+    """Get lane rate forecast from DAT"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_lane_rate_forecast", {"origin": origin, "destination": destination})
+
+
+@app.get("/mcp/tms/shipments")
+async def mcp_tms_shipments(status: Optional[str] = None, limit: int = 20):
+    """Get active shipments from TMS (McLeod/Oracle)"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_tms_shipments", {"status": status, "limit": limit})
+
+
+@app.get("/mcp/geofence/trucks")
+async def mcp_geofence_trucks():
+    """Check which trucks are inside/outside their facility geofences"""
+    server = await _get_mcp_server()
+    return await server.call_tool("check_truck_geofences", {})
+
+
+@app.get("/mcp/geofence/fuel-stops/{truck_id}")
+async def mcp_nearby_fuel_stops(truck_id: str):
+    """Get nearby fuel stops for a truck"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_nearby_fuel_stops", {"truck_id": truck_id})
+
+
+@app.get("/mcp/compliance/status")
+async def mcp_compliance_status():
+    """Get HACCP/FSMA compliance status for all facilities"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_compliance_status", {})
+
+
+@app.get("/mcp/compliance/recalls")
+async def mcp_recall_alerts():
+    """Check FDA food recall alerts for transported commodities"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_recall_alerts", {})
+
+
+@app.get("/mcp/fuel/prices")
+async def mcp_fuel_prices():
+    """Get current EIA national and regional diesel prices"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_current_fuel_prices", {})
+
+
+@app.post("/mcp/fuel/surcharge")
+async def mcp_fuel_surcharge(base_rate: float, miles: float):
+    """Calculate fuel surcharge for a load"""
+    server = await _get_mcp_server()
+    return await server.call_tool("calculate_fuel_surcharge", {"base_rate": base_rate, "miles": miles})
+
+
+@app.get("/mcp/maintenance/fleet-health")
+async def mcp_fleet_health():
+    """Get predictive maintenance health scores for all trucks"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_fleet_health", {})
+
+
+@app.get("/mcp/maintenance/alerts")
+async def mcp_maintenance_alerts():
+    """Get active maintenance alerts requiring attention"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_maintenance_alerts", {})
+
+
+@app.get("/mcp/ports/status")
+async def mcp_port_status(port: str = "Los Angeles"):
+    """Get port congestion and estimated wait times"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_port_status", {"port": port})
+
+
+@app.get("/mcp/ports/intermodal")
+async def mcp_intermodal_options(origin: str, destination: str, weight_lbs: int = 40000):
+    """Compare intermodal vs OTR routing options for a lane"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_intermodal_options", {"origin": origin, "destination": destination, "weight_lbs": weight_lbs})
+
+
+@app.post("/mcp/notifications/delivery-alert")
+async def mcp_delivery_alert(customer_name: str, load_id: str, truck_id: str, eta_minutes: int):
+    """Send delivery ETA notification to customer via SMS"""
+    server = await _get_mcp_server()
+    return await server.call_tool("send_delivery_alert", {"customer_name": customer_name, "load_id": load_id, "truck_id": truck_id, "eta_minutes": eta_minutes})
+
+
+@app.post("/mcp/notifications/pod")
+async def mcp_generate_pod(load_id: str, truck_id: str, delivered_by: str):
+    """Generate Proof of Delivery document"""
+    server = await _get_mcp_server()
+    return await server.call_tool("generate_pod_document", {"load_id": load_id, "truck_id": truck_id, "delivered_by": delivered_by})
+
+
+@app.get("/mcp/insurance/summary")
+async def mcp_insurance_summary():
+    """Get fleet insurance coverage summary"""
+    server = await _get_mcp_server()
+    return await server.call_tool("get_insurance_summary", {})
+
+
+@app.post("/mcp/insurance/claim")
+async def mcp_file_claim(load_id: str, incident_type: str, description: str, estimated_value: float):
+    """File a cargo insurance claim"""
+    server = await _get_mcp_server()
+    return await server.call_tool("file_cargo_claim", {"load_id": load_id, "incident_type": incident_type, "description": description, "estimated_value": estimated_value})
+
+
+# ===========================================================================
 # Fleet / Truck Management
 # ===========================================================================
 
