@@ -1,12 +1,23 @@
 "use client";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Zap, Truck, Bell, BarChart3,
-  FolderOpen, Settings, Shield, History
+  FolderOpen, Settings, Shield, History, Lock
 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
-const nav = [
+type NavItem = {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  badge?: number;
+  badgeColor?: string;
+  permission?: string;
+};
+
+const nav: { group: string; items: NavItem[] }[] = [
   { group: "OPERATIONS", items: [
     { href: "/dashboard",  icon: LayoutDashboard, label: "Dashboard" },
     { href: "/agents",     icon: Zap,             label: "Agents",    badge: 4 },
@@ -20,13 +31,14 @@ const nav = [
     { href: "/history",    icon: History,    label: "History" },
   ]},
   { group: "SYSTEM", items: [
-    { href: "/settings",   icon: Settings,  label: "Settings" },
-    { href: "/admin",      icon: Shield,    label: "Admin" },
+    { href: "/settings",   icon: Settings,  label: "Settings",  permission: "settings:view" },
+    { href: "/admin",      icon: Shield,    label: "Admin",     permission: "admin:users"   },
   ]},
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { can } = usePermissions();
 
   return (
     <aside style={{
@@ -63,8 +75,9 @@ export default function Sidebar() {
             }}>
               {group}
             </div>
-            {items.map(({ href, icon: Icon, label, badge, badgeColor }) => {
+            {items.map(({ href, icon: Icon, label, badge, badgeColor, permission }) => {
               const active = pathname === href || pathname.startsWith(href + "/");
+              const locked = permission ? !can(permission as any) : false;
               return (
                 <Link key={href} href={href} style={{ textDecoration: "none" }}>
                   <div style={{
@@ -78,13 +91,15 @@ export default function Sidebar() {
                     borderRight: active ? "2px solid var(--teal)" : "2px solid transparent",
                     cursor: "pointer",
                     transition: "all 0.12s",
+                    opacity: locked ? 0.5 : 1,
                   }}
                   onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)"; }}
                   onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                   >
                     <Icon size={15} color={active ? "var(--teal)" : undefined} />
                     <span style={{ flex: 1 }}>{label}</span>
-                    {badge && (
+                    {locked && <Lock size={11} style={{ color: "var(--text-dim)", flexShrink: 0 }} />}
+                    {!locked && badge && (
                       <span style={{
                         background: badgeColor || "var(--teal)",
                         color: badgeColor ? "#1a0a00" : "#020d1a",

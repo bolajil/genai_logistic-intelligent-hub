@@ -230,6 +230,60 @@ def auth_change_password(body: _ChangePwdReq, current_user: dict = Depends(get_c
                 "force_password_change": False})
     return {"message": "Password updated successfully"}
 
+
+@app.get("/auth/users")
+def auth_list_users(_: dict = Depends(require_permission("admin:users"))):
+    """List all users — admin only. Strips hashed_password from response."""
+    from .auth_utils import _load_db
+    db = _load_db()
+    users = []
+    for u in db.get("by_id", {}).values():
+        users.append({
+            "id": u["id"],
+            "name": u["name"],
+            "email": u["email"],
+            "role": u["role"],
+            "created_at": u.get("created_at", ""),
+            "force_password_change": u.get("force_password_change", False),
+        })
+    users.sort(key=lambda x: x["created_at"])
+    return {"users": users, "total": len(users)}
+
+
+class _AdminResetPwdReq(BaseModel):
+    user_id: str
+    new_password: str
+
+
+@app.post("/auth/admin/reset-password")
+def auth_admin_reset_password(body: _AdminResetPwdReq, _: dict = Depends(require_permission("admin:users"))):
+    """Admin resets any user's password and forces a password change on next login."""
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    user = get_user_by_id(body.user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    store_user({**user, "hashed_password": hash_password(body.new_password),
+                "force_password_change": True})
+    return {"message": f"Password reset for {user['email']}. User must change on next login."}
+
+
+@app.delete("/auth/users/{user_id}", status_code=204)
+def auth_delete_user(user_id: str, current_user: dict = Depends(require_permission("admin:users"))):
+    """Delete a user account — admin only. Cannot delete own account."""
+    if user_id == current_user["id"]:
+        raise HTTPException(400, "Cannot delete your own account")
+    from .auth_utils import _load_db, _save_db
+    db = _load_db()
+    user = db.get("by_id", {}).get(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    email = user["email"].lower()
+    db["by_id"].pop(user_id, None)
+    db["by_email"].pop(email, None)
+    _save_db(db)
+
+
 # Initialize configuration and providers at import-time for simplicity.
 _cfg = load_config()
 _emb = make_embeddings_provider(_cfg)
@@ -337,7 +391,7 @@ def root():
 
 
 @app.get("/debug/bm25")
-def debug_bm25(collection: str = "lineage-sops", q: str = "temperature breach dairy"):
+def debug_bm25(collection: str = "lineage-sops", q: str = "temperature breach dairy", _: dict = Depends(require_permission("settings:view"))):
     entry = _get_bm25_index(collection)
     if entry is None:
         return {"status": "failed", "docs": 0}
@@ -406,7 +460,7 @@ def health_detailed():
 
 
 @app.get("/config")
-def get_config():
+def get_config(_: dict = Depends(require_permission("settings:view"))):
     # Expose sanitized config and chosen providers (no secrets)
     safe = sanitize_config(_cfg)
     api_key_env = (_cfg.get("llm", {}) or {}).get("api_key_env", "OPENAI_API_KEY")

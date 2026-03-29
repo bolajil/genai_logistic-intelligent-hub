@@ -1,17 +1,17 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import { ragQuery, BASE, authHeaders } from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermissions";
 
-const COLLECTIONS = ["lineage-sops", "glih-default"];
+const FALLBACK_COLLECTIONS = ["lineage-sops", "glih-default"];
 
-const INITIAL_DOCS = [
-  { id: "sop-001", name: "SOP-COLD-CHAIN-003", type: "SOP",  collection: "lineage-sops", size: "2.4 KB", added: "2025-01-15", chunks: 3  },
-  { id: "sop-002", name: "SOP-ROUTE-007",       type: "SOP",  collection: "lineage-sops", size: "89 KB",  added: "2025-01-15", chunks: 12 },
-  { id: "sop-003", name: "SOP-IOT-002",          type: "SOP",  collection: "lineage-sops", size: "67 KB",  added: "2025-01-15", chunks: 9  },
-  { id: "doc-001", name: "Lineage-SOPs Full",    type: "Data", collection: "lineage-sops", size: "2.4 KB", added: "2025-03-24", chunks: 3  },
-];
+interface CollectionStat {
+  name: string;
+  count: number;
+  provider: string;
+  isDefault: boolean;
+}
 
 export default function DocumentsPage() {
   const { can } = usePermissions();
@@ -21,8 +21,10 @@ export default function DocumentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"query" | "manage">("query");
 
-  // Manage tab state
-  const [docs, setDocs] = useState(INITIAL_DOCS);
+  // Manage tab state — live collections from ChromaDB
+  const [collections, setCollections] = useState<CollectionStat[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [collectionNames, setCollectionNames] = useState<string[]>(FALLBACK_COLLECTIONS);
   const [showModal, setShowModal] = useState(false);
   const [ingestMode, setIngestMode] = useState<"file" | "text" | "url">("url");
   const [collection, setCollection] = useState("lineage-sops");
@@ -33,6 +35,37 @@ export default function DocumentsPage() {
   const [ingestResult, setIngestResult] = useState<{ chunks: number; collection: string } | null>(null);
   const [ingestError, setIngestError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function fetchCollections() {
+    setCollectionsLoading(true);
+    try {
+      const res = await fetch(`${BASE}/index/collections`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      const names: string[] = data.collections || [];
+      const defaultCol: string = data.default || "lineage-sops";
+      if (names.length > 0) setCollectionNames(names);
+
+      const stats = await Promise.all(
+        names.map(async (name) => {
+          try {
+            const sr = await fetch(`${BASE}/index/collections/${encodeURIComponent(name)}/stats`, { headers: authHeaders() });
+            const sd = sr.ok ? await sr.json() : {};
+            return { name, count: sd.count ?? 0, provider: sd.provider ?? "chromadb", isDefault: name === defaultCol } as CollectionStat;
+          } catch {
+            return { name, count: 0, provider: "chromadb", isDefault: name === defaultCol } as CollectionStat;
+          }
+        })
+      );
+      setCollections(stats);
+    } catch {
+      // keep whatever was there
+    } finally {
+      setCollectionsLoading(false);
+    }
+  }
+
+  useEffect(() => { if (tab === "manage") fetchCollections(); }, [tab]);
 
   async function search() {
     if (!query.trim()) return;
@@ -55,7 +88,6 @@ export default function DocumentsPage() {
     setIngestResult(null);
     try {
       let data: any;
-      const today = new Date().toISOString().slice(0, 10);
 
       if (ingestMode === "url") {
         if (!urlInput.trim()) throw new Error("No URL entered");
@@ -73,11 +105,6 @@ export default function DocumentsPage() {
         data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
         if ((data.ingested ?? 0) === 0) throw new Error(data.detail || "0 chunks extracted — URLs may be inaccessible or image-only");
-        const successUrls = urls.filter((u: string) => !(data.errors ?? []).some((e: string) => e.startsWith(u)));
-        successUrls.forEach((u: string) => {
-          const name = decodeURIComponent(u.split("/").pop()?.replace(/\.[^.]+$/, "") || "URL Import");
-          setDocs(prev => [...prev, { id: `doc-${Date.now()}-${name}`, name, type: "Data", collection, size: "—", added: today, chunks: data.ingested }]);
-        });
         setIngestResult({ chunks: data.ingested ?? 0, collection: data.collection ?? collection });
         if (data.errors?.length) {
           setIngestError(`⚠ ${data.errors.length} URL(s) failed (timeout/blocked): ${data.errors.map((e: string) => e.split(":")[0].split("/").pop()).join(", ")}`);
@@ -97,12 +124,6 @@ export default function DocumentsPage() {
         data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
         if ((data.ingested ?? 0) === 0) throw new Error("0 chunks extracted — try a .txt file or use URL ingest for PDFs");
-        Array.from(files).forEach(f => {
-          setDocs(prev => [...prev, {
-            id: `doc-${Date.now()}-${f.name}`, name: f.name.replace(/\.[^.]+$/, ""),
-            type: "Data", collection, size: `${(f.size / 1024).toFixed(1)} KB`, added: today, chunks: data.ingested ?? 0,
-          }]);
-        });
       } else {
         if (!pastedText.trim()) throw new Error("No text entered");
         const res = await fetch(`${BASE}/ingest`, {
@@ -112,15 +133,12 @@ export default function DocumentsPage() {
         });
         data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
-        setDocs(prev => [...prev, {
-          id: `doc-${Date.now()}`, name: docName || "Manual Paste",
-          type: "Data", collection, size: `${(new Blob([pastedText]).size / 1024).toFixed(1)} KB`, added: today, chunks: data.ingested ?? 0,
-        }]);
       }
 
       if (ingestMode !== "url") {
         setIngestResult({ chunks: data.ingested ?? 0, collection: data.collection ?? collection });
       }
+      fetchCollections();
       setPastedText("");
       setDocName("");
       if (fileRef.current) fileRef.current.value = "";
@@ -247,32 +265,39 @@ export default function DocumentsPage() {
                 <button className="btn-primary" onClick={() => setShowModal(true)}>+ Ingest Document</button>
               )}
             </div>
-            <div className="card" style={{ overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-                <thead>
-                  <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
-                    {["Name", "Type", "Collection", "Size", "Chunks", "Added"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", color: "var(--text-muted)", fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {docs.map(d => (
-                    <tr key={d.id} style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--bg-card)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-                    >
-                      <td style={{ padding: "10px 14px", color: "var(--teal)", fontWeight: 600 }}>{d.name}</td>
-                      <td style={{ padding: "10px 14px" }}><span className="badge badge-transit">{d.type}</span></td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: "0.68rem" }}>{d.collection}</td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-secondary)" }}>{d.size}</td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-secondary)" }}>{d.chunks}</td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)" }}>{d.added}</td>
+            {collectionsLoading && <div style={{ color: "var(--text-muted)", padding: 20, fontSize: "0.8rem" }}>Loading collections...</div>}
+            {!collectionsLoading && (
+              <div className="card" style={{ overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
+                      {["Collection", "Chunks", "Provider", "Status"].map(h => (
+                        <th key={h} style={{ textAlign: "left", padding: "10px 14px", color: "var(--text-muted)", fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {collections.length === 0 && (
+                      <tr><td colSpan={4} style={{ padding: "20px 14px", color: "var(--text-muted)", fontSize: "0.75rem" }}>No collections found — ingest a document to create one.</td></tr>
+                    )}
+                    {collections.map(c => (
+                      <tr key={c.name} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "10px 14px", color: "var(--teal)", fontWeight: 600, fontFamily: "monospace", fontSize: "0.72rem" }}>
+                          {c.name} {c.isDefault && <span style={{ fontSize: "0.58rem", color: "var(--text-muted)", fontFamily: "sans-serif" }}>default</span>}
+                        </td>
+                        <td style={{ padding: "10px 14px", color: "var(--text-primary)" }}>{c.count}</td>
+                        <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: "0.68rem" }}>{c.provider}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <span style={{ color: c.count > 0 ? "#4ade80" : "#f59e0b", fontSize: "0.65rem" }}>
+                            {c.count > 0 ? "● Active" : "○ Empty"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -309,7 +334,7 @@ export default function DocumentsPage() {
                 width: "100%", background: "var(--bg-secondary)", border: "1px solid var(--border)",
                 borderRadius: 6, padding: "8px 12px", color: "var(--text-primary)", fontSize: "0.8rem",
               }}>
-                {COLLECTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                {collectionNames.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 

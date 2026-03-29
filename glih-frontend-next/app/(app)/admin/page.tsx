@@ -1,16 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
-import { getHealthDetailed } from "@/lib/api";
+import { getHealthDetailed, BASE, authHeaders } from "@/lib/api";
 import { usePermissions } from "@/hooks/usePermissions";
-
-const USERS = [
-  { id: 1, name: "Lanre Bolaji",  email: "lanre@lineage.com",    role: "ops-manager", last: "Now" },
-  { id: 2, name: "Sarah Chen",    email: "s.chen@lineage.com",   role: "admin",       last: "2h ago" },
-  { id: 3, name: "Marcus Webb",   email: "m.webb@lineage.com",   role: "analyst",     last: "1d ago" },
-  { id: 4, name: "Priya Sharma",  email: "p.sharma@lineage.com", role: "viewer",      last: "3d ago" },
-  { id: 5, name: "locust-test",   email: "locust@glih.test",     role: "analyst",     last: "Load test" },
-];
+import { useAuth } from "@/app/contexts/AuthContext";
 
 const AUDIT = [
   { user: "Lanre Bolaji", action: "rag_query",          resource: "lineage-sops",     time: "1m ago" },
@@ -22,11 +15,17 @@ const AUDIT = [
 ];
 
 const roleColor: Record<string, string> = {
-  admin: "#f59e0b", "ops-manager": "#22d3ee", analyst: "#a78bfa", viewer: "#64748b",
+  admin: "#f59e0b", analyst: "#a78bfa", viewer: "#64748b",
 };
+
+interface LiveUser {
+  id: string; name: string; email: string; role: string;
+  created_at: string; force_password_change: boolean;
+}
 
 export default function AdminPage() {
   const { can, role } = usePermissions();
+  const { user: me } = useAuth();
   const [tab, setTab] = useState<"users" | "audit" | "health">("users");
 
   if (!can("admin:users")) {
@@ -47,6 +46,44 @@ export default function AdminPage() {
   }
   const [health, setHealth] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [users, setUsers] = useState<LiveUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState<LiveUser | null>(null);
+  const [resetPwd, setResetPwd] = useState("");
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+  const [resetErr, setResetErr] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  async function fetchUsers() {
+    setUsersLoading(true);
+    try {
+      const res = await fetch(`${BASE}/auth/users`, { headers: authHeaders() });
+      if (res.ok) { const d = await res.json(); setUsers(d.users || []); }
+    } finally { setUsersLoading(false); }
+  }
+
+  async function handleReset() {
+    if (!resetTarget || resetPwd.length < 8) return;
+    setResetting(true); setResetMsg(null); setResetErr(null);
+    try {
+      const res = await fetch(`${BASE}/auth/admin/reset-password`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ user_id: resetTarget.id, new_password: resetPwd }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || "Reset failed");
+      setResetMsg(d.message); setResetPwd(""); setResetTarget(null);
+      fetchUsers();
+    } catch (e: any) { setResetErr(e.message); } finally { setResetting(false); }
+  }
+
+  async function handleDelete(u: LiveUser) {
+    if (!confirm(`Delete ${u.name} (${u.email})? This cannot be undone.`)) return;
+    const res = await fetch(`${BASE}/auth/users/${u.id}`, { method: "DELETE", headers: authHeaders() });
+    if (res.ok || res.status === 204) fetchUsers();
+  }
+
+  useEffect(() => { if (tab === "users") fetchUsers(); }, [tab]);
 
   useEffect(() => {
     if (tab === "health") {
@@ -76,35 +113,73 @@ export default function AdminPage() {
 
         {tab === "users" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-              <button className="btn-primary">+ Add User</button>
-            </div>
-            <div className="card" style={{ overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
-                <thead>
-                  <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
-                    {["Name", "Email", "Role", "Last Active", "Actions"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "10px 14px", color: "var(--text-muted)", fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {USERS.map(u => (
-                    <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: "10px 14px", color: "var(--text-primary)", fontWeight: 600 }}>{u.name}</td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: "0.68rem" }}>{u.email}</td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <span style={{ color: roleColor[u.role] || "#64748b", fontSize: "0.68rem", fontWeight: 700 }}>{u.role}</span>
-                      </td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)" }}>{u.last}</td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <button className="btn-ghost" style={{ fontSize: "0.62rem", padding: "3px 8px" }}>Edit</button>
-                      </td>
+            {resetMsg && <div style={{ background: "#052e16", border: "1px solid #14532d", borderRadius: 6, padding: "10px 14px", color: "#4ade80", fontSize: "0.75rem", marginBottom: 12 }}>✓ {resetMsg}</div>}
+            {usersLoading
+              ? <div style={{ color: "var(--text-muted)", padding: 20, fontSize: "0.8rem" }}>Loading users...</div>
+              : (
+              <div className="card" style={{ overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.75rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
+                      {["Name", "Email", "Role", "Status", "Actions"].map(h => (
+                        <th key={h} style={{ textAlign: "left", padding: "10px 14px", color: "var(--text-muted)", fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "10px 14px", color: "var(--text-primary)", fontWeight: 600 }}>
+                          {u.name} {u.id === (me as any)?.id && <span style={{ fontSize: "0.58rem", color: "var(--teal)" }}>YOU</span>}
+                        </td>
+                        <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: "0.68rem" }}>{u.email}</td>
+                        <td style={{ padding: "10px 14px" }}>
+                          <span style={{ color: roleColor[u.role] || "#64748b", fontSize: "0.68rem", fontWeight: 700 }}>{u.role}</span>
+                        </td>
+                        <td style={{ padding: "10px 14px" }}>
+                          {u.force_password_change
+                            ? <span style={{ color: "#f59e0b", fontSize: "0.65rem" }}>⚠ Must change pwd</span>
+                            : <span style={{ color: "#4ade80", fontSize: "0.65rem" }}>● Active</span>}
+                        </td>
+                        <td style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
+                          <button className="btn-ghost" style={{ fontSize: "0.62rem", padding: "3px 8px" }}
+                            onClick={() => { setResetTarget(u); setResetPwd(""); setResetErr(null); }}>
+                            Reset Pwd
+                          </button>
+                          {u.id !== (me as any)?.id && (
+                            <button className="btn-ghost" style={{ fontSize: "0.62rem", padding: "3px 8px", color: "#f87171" }}
+                              onClick={() => handleDelete(u)}>
+                              Delete
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Reset Password Modal */}
+            {resetTarget && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+                onClick={e => { if (e.target === e.currentTarget) setResetTarget(null); }}>
+                <div className="card" style={{ width: 400, padding: 24 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>Reset Password</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 16 }}>{resetTarget.name} · {resetTarget.email}</div>
+                  <input type="password" value={resetPwd} onChange={e => setResetPwd(e.target.value)}
+                    placeholder="New password (min 8 chars)"
+                    style={{ width: "100%", background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 6, padding: "9px 12px", color: "var(--text-primary)", fontSize: "0.8rem", marginBottom: 10 }} />
+                  {resetErr && <div style={{ color: "#f87171", fontSize: "0.72rem", marginBottom: 8 }}>✗ {resetErr}</div>}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button className="btn-ghost" onClick={() => setResetTarget(null)}>Cancel</button>
+                    <button className="btn-primary" onClick={handleReset} disabled={resetting || resetPwd.length < 8}>
+                      {resetting ? "Resetting..." : "Reset & Force Change"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
