@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Zap, Truck, Bell, BarChart3,
-  FolderOpen, Settings, Shield, History, Lock
+  FolderOpen, Settings, Shield, History, Lock, LogOut
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/app/contexts/AuthContext";
 
 type NavItem = {
   href: string;
@@ -39,6 +40,7 @@ const nav: { group: string; items: NavItem[] }[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { can } = usePermissions();
+  const { user, logout } = useAuth();
 
   return (
     <aside style={{
@@ -118,6 +120,60 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* User profile + logout */}
+      {user && (
+        <div style={{
+          padding: "12px 16px",
+          borderTop: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}>
+          <div style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: "var(--teal)",
+            color: "#020d1a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 700,
+            fontSize: "0.7rem",
+            flexShrink: 0,
+          }}>
+            {user.name?.charAt(0).toUpperCase() ?? "U"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {user.name}
+            </div>
+            <div style={{ fontSize: "0.6rem", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {user.role}
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            title="Log out"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              padding: 4,
+              borderRadius: 4,
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}
+          >
+            <LogOut size={14} />
+          </button>
+        </div>
+      )}
 
     </aside>
   );

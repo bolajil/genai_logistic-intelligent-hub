@@ -14,7 +14,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-const API = 'http://localhost:9001';
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9001';
 
 function setAuthCookie(v: string) {
   document.cookie = `glih_logged_in=${v}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
@@ -87,6 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     const token = localStorage.getItem('glih_access_token');
     await _fetch('/auth/change-password', { current_password: currentPassword, new_password: newPassword }, token ?? undefined);
+    // Clear force_password_change so the layout no longer redirects back here
+    const stored = localStorage.getItem('glih_user');
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        delete u.force_password_change;
+        localStorage.setItem('glih_user', JSON.stringify(u));
+        setUser(u);
+      } catch { /* ignore */ }
+    }
     router.push('/dashboard');
   }, [router]);
 
