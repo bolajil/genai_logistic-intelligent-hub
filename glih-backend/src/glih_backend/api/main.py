@@ -284,6 +284,27 @@ def auth_delete_user(user_id: str, current_user: dict = Depends(require_permissi
     _save_db(db)
 
 
+class _AdminUpdateRoleReq(BaseModel):
+    role: str
+
+
+_VALID_ROLES = {"viewer", "analyst", "admin"}
+
+@app.patch("/auth/users/{user_id}/role")
+def auth_update_role(user_id: str, body: _AdminUpdateRoleReq,
+                     current_user: dict = Depends(require_permission("admin:users"))):
+    """Admin changes a user's role. Cannot change own role."""
+    if body.role not in _VALID_ROLES:
+        raise HTTPException(400, f"Invalid role '{body.role}'. Must be one of: {', '.join(sorted(_VALID_ROLES))}")
+    if user_id == current_user["id"]:
+        raise HTTPException(400, "Cannot change your own role")
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    store_user({**user, "role": body.role})
+    return {"message": f"Role updated to '{body.role}' for {user['email']}.", "role": body.role}
+
+
 # Initialize configuration and providers at import-time for simplicity.
 _cfg = load_config()
 _emb = make_embeddings_provider(_cfg)

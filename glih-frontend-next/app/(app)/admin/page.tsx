@@ -77,6 +77,18 @@ export default function AdminPage() {
     } catch (e: any) { setResetErr(e.message); } finally { setResetting(false); }
   }
 
+  async function handleRoleChange(u: LiveUser, newRole: string) {
+    const res = await fetch(`${BASE}/auth/users/${u.id}/role`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ role: newRole }),
+    });
+    if (res.ok) {
+      setResetMsg(`Role updated to '${newRole}' for ${u.name}.`);
+      fetchUsers();
+    }
+  }
+
   async function handleDelete(u: LiveUser) {
     if (!confirm(`Delete ${u.name} (${u.email})? This cannot be undone.`)) return;
     const res = await fetch(`${BASE}/auth/users/${u.id}`, { method: "DELETE", headers: authHeaders() });
@@ -134,7 +146,23 @@ export default function AdminPage() {
                         </td>
                         <td style={{ padding: "10px 14px", color: "var(--text-muted)", fontFamily: "monospace", fontSize: "0.68rem" }}>{u.email}</td>
                         <td style={{ padding: "10px 14px" }}>
-                          <span style={{ color: roleColor[u.role] || "#64748b", fontSize: "0.68rem", fontWeight: 700 }}>{u.role}</span>
+                          {u.id === (me as any)?.id ? (
+                            <span style={{ color: roleColor[u.role] || "#64748b", fontSize: "0.68rem", fontWeight: 700 }}>{u.role}</span>
+                          ) : (
+                            <select
+                              value={u.role}
+                              onChange={e => handleRoleChange(u, e.target.value)}
+                              style={{
+                                background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                                borderRadius: 4, padding: "2px 6px", fontSize: "0.68rem",
+                                fontWeight: 700, color: roleColor[u.role] || "#64748b", cursor: "pointer",
+                              }}
+                            >
+                              <option value="viewer">viewer</option>
+                              <option value="analyst">analyst</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          )}
                         </td>
                         <td style={{ padding: "10px 14px" }}>
                           {u.force_password_change
