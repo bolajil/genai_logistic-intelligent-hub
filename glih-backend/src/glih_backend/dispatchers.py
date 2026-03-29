@@ -5,6 +5,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
 import os
+import json as _json
+import pathlib as _pathlib
 import secrets
 import logging
 from passlib.context import CryptContext
@@ -62,42 +64,53 @@ _admin = {
     "role": "admin",
 }
 
-# In-memory storage for dispatchers (in production, use a real database)
-_dispatchers: Dict[str, Dict[str, Any]] = {
+# ── File-backed dispatcher store ─────────────────────────────────────────────
+_DISP_DB_PATH = _pathlib.Path(__file__).parent.parent.parent.parent.parent / "data" / "glih_dispatchers.json"
+
+_SEED_DISPATCHERS: Dict[str, Dict[str, Any]] = {
     "jmartinez": {
-        "id": "DISP-001",
-        "username": "jmartinez",
-        "name": "John Martinez",
-        "title": "Cold Chain Operations Dispatcher",
+        "id": "DISP-001", "username": "jmartinez",
+        "name": "John Martinez", "title": "Cold Chain Operations Dispatcher",
         "email": "john.martinez@lineagelogistics.com",
-        "facility": "Chicago",
-        "shift": "Day",
-        "active": True,
-        "created_at": "2025-01-15T08:00:00"
+        "facility": "Chicago", "shift": "Day", "active": True,
+        "created_at": "2025-01-15T08:00:00",
     },
     "sthompson": {
-        "id": "DISP-002",
-        "username": "sthompson",
-        "name": "Sarah Thompson",
-        "title": "Senior Operations Dispatcher",
+        "id": "DISP-002", "username": "sthompson",
+        "name": "Sarah Thompson", "title": "Senior Operations Dispatcher",
         "email": "sarah.thompson@lineagelogistics.com",
-        "facility": "Chicago",
-        "shift": "Night",
-        "active": True,
-        "created_at": "2025-02-01T08:00:00"
+        "facility": "Chicago", "shift": "Night", "active": True,
+        "created_at": "2025-02-01T08:00:00",
     },
     "mwilson": {
-        "id": "DISP-003",
-        "username": "mwilson",
-        "name": "Michael Wilson",
-        "title": "Operations Dispatcher",
+        "id": "DISP-003", "username": "mwilson",
+        "name": "Michael Wilson", "title": "Operations Dispatcher",
         "email": "michael.wilson@lineagelogistics.com",
-        "facility": "Atlanta",
-        "shift": "Day",
-        "active": True,
-        "created_at": "2025-03-01T08:00:00"
+        "facility": "Atlanta", "shift": "Day", "active": True,
+        "created_at": "2025-03-01T08:00:00",
     },
 }
+
+
+def _load_disp_db() -> Dict[str, Dict[str, Any]]:
+    """Load dispatcher records from disk, seeding static entries on first run."""
+    try:
+        if _DISP_DB_PATH.exists():
+            data = _json.loads(_DISP_DB_PATH.read_text())
+            # Merge seed entries so they always appear even if file predates them
+            merged = {**_SEED_DISPATCHERS, **data}
+            return merged
+    except Exception:
+        pass
+    return dict(_SEED_DISPATCHERS)
+
+
+def _save_disp_db(db: Dict[str, Dict[str, Any]]) -> None:
+    try:
+        _DISP_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _DISP_DB_PATH.write_text(_json.dumps(db, indent=2))
+    except Exception as e:
+        logger.warning(f"Could not save dispatcher DB: {e}")
 
 # Active sessions (token -> dispatcher_id)
 _sessions: Dict[str, str] = {}
@@ -176,7 +189,7 @@ def get_user_by_token(token: str) -> Optional[Dict[str, Any]]:
 
 def get_dispatcher_by_id(dispatcher_id: str) -> Optional[Dict[str, Any]]:
     """Get dispatcher info by ID."""
-    for dispatcher in _dispatchers.values():
+    for dispatcher in _load_disp_db().values():
         if dispatcher["id"] == dispatcher_id:
             return {
                 "id": dispatcher["id"],
@@ -191,7 +204,8 @@ def get_dispatcher_by_id(dispatcher_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_all_dispatchers() -> List[Dict[str, Any]]:
-    """Get all dispatchers (without passwords)."""
+    """Get all dispatchers from persistent store (without passwords)."""
+    db = _load_disp_db()
     return [
         {
             "id": d["id"],
@@ -203,21 +217,20 @@ def get_all_dispatchers() -> List[Dict[str, Any]]:
             "shift": d["shift"],
             "active": d["active"],
         }
-        for d in _dispatchers.values()
+        for d in db.values()
     ]
 
 
 def create_dispatcher(data: DispatcherCreate) -> Dict[str, Any]:
-    """Create a new dispatcher account."""
-    if data.username in _dispatchers:
+    """Create a new dispatcher account and persist to disk."""
+    db = _load_disp_db()
+    if data.username in db:
         raise ValueError(f"Username '{data.username}' already exists")
-    
-    dispatcher_id = f"DISP-{len(_dispatchers) + 1:03d}"
-    
-    _dispatchers[data.username] = {
+
+    dispatcher_id = f"DISP-{len(db) + 1:03d}"
+    record = {
         "id": dispatcher_id,
         "username": data.username,
-        "password_hash": hash_password(data.password),
         "name": data.name,
         "title": data.title,
         "email": data.email,
@@ -226,9 +239,11 @@ def create_dispatcher(data: DispatcherCreate) -> Dict[str, Any]:
         "active": True,
         "created_at": datetime.now().isoformat(),
     }
-    
-    logger.info(f"Created dispatcher account: {data.username}")
-    
+    db[data.username] = record
+    _save_disp_db(db)
+
+    logger.info(f"Created dispatcher account: {data.username} (persisted to disk)")
+
     return {
         "id": dispatcher_id,
         "username": data.username,
