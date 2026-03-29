@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Header from "@/components/Header";
 import { usePermissions } from "@/hooks/usePermissions";
-
-const BASE = "http://localhost:9001";
+import { apiFetch } from "@/lib/api";
 
 interface Dispatcher {
   id: string;
@@ -358,16 +357,11 @@ export default function AgentsPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const eventsEndRef = useRef<HTMLDivElement>(null);
 
-  const authHeaders = () => {
-    const token = localStorage.getItem("glih_access_token");
-    return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-  };
-
   // Load dispatchers on mount
   useEffect(() => {
     async function loadDispatchers() {
       try {
-        const res = await fetch(`${BASE}/dispatchers`, { headers: authHeaders() });
+        const res = await apiFetch("/dispatchers");
         const data = await res.json();
         setDispatchers(data.dispatchers || []);
         if (data.dispatchers?.length > 0) {
@@ -404,9 +398,8 @@ export default function AgentsPage() {
         if (disp) parsed = { ...parsed, dispatcher_name: disp.name, dispatcher_title: disp.title };
       }
       // Fire agent — returns immediately with run_id
-      const res = await fetch(`${BASE}${agent.endpoint}`, {
+      const res = await apiFetch(agent.endpoint, {
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify(parsed),
       });
       const init = await res.json();
@@ -416,7 +409,7 @@ export default function AgentsPage() {
       // Poll progress every 600ms
       pollRef.current = setInterval(async () => {
         try {
-          const pr = await fetch(`${BASE}/agents/progress/${runId}`, { headers: authHeaders() });
+          const pr = await apiFetch(`/agents/progress/${runId}`);
           const progress = await pr.json();
           setEvents(progress.events || []);
           if (progress.status === "complete") {
