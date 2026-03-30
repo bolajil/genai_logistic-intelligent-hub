@@ -27,6 +27,15 @@ export default function AdminPage() {
   const { can, role } = usePermissions();
   const { user: me } = useAuth();
   const [tab, setTab] = useState<"users" | "audit" | "health">("users");
+  const [health, setHealth] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [users, setUsers] = useState<LiveUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState<LiveUser | null>(null);
+  const [resetPwd, setResetPwd] = useState("");
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
+  const [resetErr, setResetErr] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   if (!can("admin:users")) {
     return (
@@ -44,15 +53,6 @@ export default function AdminPage() {
       </div>
     );
   }
-  const [health, setHealth] = useState<any>(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [users, setUsers] = useState<LiveUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [resetTarget, setResetTarget] = useState<LiveUser | null>(null);
-  const [resetPwd, setResetPwd] = useState("");
-  const [resetMsg, setResetMsg] = useState<string | null>(null);
-  const [resetErr, setResetErr] = useState<string | null>(null);
-  const [resetting, setResetting] = useState(false);
 
   async function fetchUsers() {
     setUsersLoading(true);

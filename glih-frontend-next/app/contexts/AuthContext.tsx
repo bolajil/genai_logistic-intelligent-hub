@@ -32,8 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem('glih_user');
       const token  = localStorage.getItem('glih_access_token');
-      if (stored && token) setUser(JSON.parse(stored));
+      if (stored && token) {
+        setUser(JSON.parse(stored));
+      } else {
+        // Cookie may be stale — clear it so middleware redirects correctly
+        clearAuthCookie();
+        localStorage.removeItem('glih_user');
+        localStorage.removeItem('glih_access_token');
+        localStorage.removeItem('glih_refresh_token');
+      }
     } catch {
+      clearAuthCookie();
       localStorage.removeItem('glih_user');
       localStorage.removeItem('glih_access_token');
       localStorage.removeItem('glih_refresh_token');

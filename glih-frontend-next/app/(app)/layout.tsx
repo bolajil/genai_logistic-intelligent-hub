@@ -5,25 +5,21 @@ import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/app/contexts/AuthContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
   const router = useRouter();
 
-  // If the user is logged in but hasn't changed their default password yet,
-  // block access to every app page and redirect them to /change-password.
   useEffect(() => {
     if (loading) return;
-    try {
-      const stored = localStorage.getItem("glih_user");
-      if (stored) {
-        const u = JSON.parse(stored);
-        if (u.force_password_change) {
-          router.replace("/change-password");
-        }
-      }
-    } catch {
-      // ignore parse errors
+    // No user after hydration — cookie was stale, send to login
+    if (!user) {
+      router.replace("/login");
+      return;
     }
-  }, [loading, router]);
+    // Mandatory password change — block all app routes
+    if ((user as any).force_password_change) {
+      router.replace("/change-password");
+    }
+  }, [loading, user, router]);
 
   if (loading) {
     return (
